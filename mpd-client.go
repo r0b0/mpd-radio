@@ -1,11 +1,11 @@
 package main
 
 import (
-    "fmt"
-    "io"
-    "net"
-    "strconv"
-    "strings"
+	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"strings"
 )
 
 type MpdData struct {
@@ -26,7 +26,7 @@ func (data *MpdData) Print() {
 		fmt.Printf("Received '%s': '%s'\n", k, v)
 	}
 	for _, line := range data.unparsed {
-		fmt.Printf("Received unparsed line: '%s'\n", line)	
+		fmt.Printf("Received unparsed line: '%s'\n", line)
 	}
 	for _, line := range data.binary {
 		fmt.Printf("Received binary: '%v'\n", line)
@@ -35,7 +35,8 @@ func (data *MpdData) Print() {
 }
 
 type MpdClient struct {
-	conn io.ReadWriteCloser
+	address string
+	conn    io.ReadWriteCloser
 }
 
 func (client *MpdClient) Close() {
@@ -43,15 +44,21 @@ func (client *MpdClient) Close() {
 }
 
 func Connect(host string, port string) (MpdClient, error) {
-	client := MpdClient{}
 	if port == "" {
 		port = "6600"
 	}
+	client := MpdClient{net.JoinHostPort(host, port), nil}
 	var err error
-	client.conn, err = net.Dial("tcp", net.JoinHostPort(host, port))
+	client.conn, err = net.Dial("tcp", client.address)
+	if err != nil {
+		return client, err
+	}
 	data, err := recv(client.conn)
+	if err != nil {
+		return client, err
+	}
 	data.Print()
-	return client, err
+	return client, nil
 }
 
 func mpdmain() {
@@ -62,7 +69,7 @@ func mpdmain() {
 		return
 	}
 	defer conn.Close()
-	
+
 	data, err := conn.Command("currentsong")
 	if err != nil {
 		fmt.Println("Failed to get current song: ", err)
@@ -71,12 +78,12 @@ func mpdmain() {
 	data.Print()
 
 	/*
-	data, err = command(conn, "idle")
-	if err != nil {
-	fmt.Println("Failed to idle: ", err)
-	return
-	}
-	data.Print()
+		data, err = command(conn, "idle")
+		if err != nil {
+		fmt.Println("Failed to idle: ", err)
+		return
+		}
+		data.Print()
 	*/
 }
 
@@ -94,18 +101,18 @@ func recv(conn io.ReadWriter) (MpdData, error) {
 		if readingBinary == 0 {
 			if r == '\n' {
 				line := string(byteBuffer[lineStart:i])
-				lineStart = i+1
+				lineStart = i + 1
 				after, has := strings.CutPrefix(line, "OK")
 				if has {
 					data.ok = strings.TrimSpace(after)
 					return data, nil
 				}
-				
+
 				after, has = strings.CutPrefix(line, "ACK")
 				if has {
 					return data, fmt.Errorf("error from daemon: %s", after)
 				}
-				
+
 				after, has = strings.CutPrefix(line, "binary: ")
 				if has {
 					readingBinary, err = strconv.Atoi(after)
@@ -113,7 +120,7 @@ func recv(conn io.ReadWriter) (MpdData, error) {
 						return data, err
 					}
 				}
-				
+
 				k, v, has := strings.Cut(line, ": ")
 				if has {
 					data.response[k] = v
