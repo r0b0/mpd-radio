@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -8,36 +9,56 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type Application struct {
+	ServerList []MpdClient
+	UrlList    []Radio
+}
+
 func main() {
 	a := app.New()
 	w := a.NewWindow("MPD Radio")
 	w.Resize(fyne.NewSize(640, 480))
+	application, err := loadApp()
+	if err != nil {
+		dialog.ShowError(err, w)
+		return
+	}
 
 	serverLabel := widget.NewLabel("Player")
-	serverList := []MpdClient{}
 	var serverDropdown *widget.Select
-	serverDropdown = widget.NewSelect(showServerList(serverList), func(s string) {
-		switch s {
-		case "Add New...":
-			addNewPlayer(w, func(player MpdClient) {
-				serverList = append(serverList, player)
-				serverDropdown.SetOptions(showServerList(serverList))
-			})
-		}
-	})
+	serverDropdown = widget.NewSelect(
+		application.showServerList(), func(s string) {
+			switch s {
+			case "Add New...":
+				addNewPlayer(w, func(player MpdClient) {
+					application.ServerList = append(application.ServerList, player)
+					serverDropdown.SetOptions(application.showServerList())
+					serverDropdown.SetSelected(player.Address)
+					err := application.store()
+					if err != nil {
+						dialog.ShowError(err, w)
+					}
+				})
+			}
+		})
 
 	urlLabel := widget.NewLabel("Radio")
-	urlList := []Radio{}
 	var urlDropdown *widget.Select
-	urlDropdown = widget.NewSelect(showRadioList(urlList), func(s string) {
-		switch s {
-		case "Add New...":
-			addNewRadio(w, func(radio Radio) {
-				urlList = append(urlList, radio)
-				urlDropdown.SetOptions(showRadioList(urlList))
-			})
-		}
-	})
+	urlDropdown = widget.NewSelect(
+		application.showRadioList(), func(s string) {
+			switch s {
+			case "Add New...":
+				addNewRadio(w, func(radio Radio) {
+					application.UrlList = append(application.UrlList, radio)
+					urlDropdown.SetOptions(application.showRadioList())
+					urlDropdown.SetSelected(radio.Name)
+					err := application.store()
+					if err != nil {
+						dialog.ShowError(err, w)
+					}
+				})
+			}
+		})
 
 	// TODO buttons
 	w.SetContent(container.NewVBox(
@@ -45,18 +66,43 @@ func main() {
 	w.ShowAndRun()
 }
 
-func showServerList(servers []MpdClient) []string {
+func (a *Application) store() error {
+	data, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	err = saveConfig(string(data))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadApp() (*Application, error) {
+	data, err := loadConfig()
+	if err != nil {
+		return nil, err
+	}
+	var application Application
+	err = json.Unmarshal([]byte(data), &application)
+	if err != nil {
+		return nil, err
+	}
+	return &application, nil
+}
+
+func (a *Application) showServerList() []string {
 	ret := []string{"Add New..."}
-	for _, s := range servers {
-		ret = append(ret, s.address)
+	for _, s := range a.ServerList {
+		ret = append(ret, s.Address)
 	}
 	return ret
 }
 
-func showRadioList(radios []Radio) []string {
+func (a *Application) showRadioList() []string {
 	ret := []string{"Add New..."}
-	for _, s := range radios {
-		ret = append(ret, s.name)
+	for _, s := range a.UrlList {
+		ret = append(ret, s.Name)
 	}
 	return ret
 }
@@ -86,8 +132,8 @@ func addNewPlayer(parent fyne.Window, cb func(client MpdClient)) {
 }
 
 type Radio struct {
-	name string
-	url  string
+	Name string
+	Url  string
 }
 
 func addNewRadio(parent fyne.Window, cb func(Radio)) {

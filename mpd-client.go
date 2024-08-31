@@ -35,7 +35,7 @@ func (data *MpdData) Print() {
 }
 
 type MpdClient struct {
-	address string
+	Address string
 	conn    io.ReadWriteCloser
 }
 
@@ -49,7 +49,7 @@ func Connect(host string, port string) (MpdClient, error) {
 	}
 	client := MpdClient{net.JoinHostPort(host, port), nil}
 	var err error
-	client.conn, err = net.Dial("tcp", client.address)
+	client.conn, err = net.Dial("tcp", client.Address)
 	if err != nil {
 		return client, err
 	}
