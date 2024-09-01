@@ -39,10 +39,37 @@ type MpdClient struct {
 	conn    io.ReadWriteCloser
 }
 
+func NewMpdClient(host string, port string) (*MpdClient, error) {
+	if port == "" {
+		port = "6600"
+	}
+	client := MpdClient{net.JoinHostPort(host, port), nil}
+	err := client.Connect()
+	if err != nil {
+		return nil, err
+	}
+	return &client, nil
+}
+
+func (client *MpdClient) Connect() error {
+	var err error
+	client.conn, err = net.Dial("tcp", client.Address)
+	if err != nil {
+		return err
+	}
+	data, err := recv(client.conn)
+	if err != nil {
+		return err
+	}
+	data.Print()
+	return nil
+}
+
 func (client *MpdClient) Close() {
 	_ = client.conn.Close()
 }
 
+// Deprecated: use NewMpdClient
 func Connect(host string, port string) (MpdClient, error) {
 	if port == "" {
 		port = "6600"
@@ -138,6 +165,12 @@ func recv(conn io.ReadWriter) (MpdData, error) {
 
 func (client *MpdClient) Command(command string) (MpdData, error) {
 	fmt.Printf("Running command %s\n", command)
+	if client.conn == nil {
+		err := client.Connect()
+		if err != nil {
+			return MpdData{}, err
+		}
+	}
 	_, err := client.conn.Write([]byte(fmt.Sprintf("%s\n", command)))
 	if err != nil {
 		return MpdData{}, err
