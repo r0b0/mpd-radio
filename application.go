@@ -6,8 +6,8 @@ import (
 )
 
 type Application struct {
-    ServerList []*MpdClient
-    UrlList    []Radio
+    PlayerList []*MpdClient
+    RadioList  []Radio
 }
 
 func (a *Application) store() error {
@@ -35,16 +35,16 @@ func loadApp() (*Application, error) {
     return &application, nil
 }
 
-func (a *Application) showServerList() []string {
+func (a *Application) showPlayerList() []string {
     ret := []string{"Add New..."}
-    for _, s := range a.ServerList {
+    for _, s := range a.PlayerList {
         ret = append(ret, s.Address)
     }
     return ret
 }
 
-func (a *Application) selectedServer(name string) (*MpdClient, error) {
-    for _, s := range a.ServerList {
+func (a *Application) selectedPlayer(name string) (*MpdClient, error) {
+    for _, s := range a.PlayerList {
         if s.Address == name {
             return s, nil
         }
@@ -54,14 +54,14 @@ func (a *Application) selectedServer(name string) (*MpdClient, error) {
 
 func (a *Application) showRadioList() []string {
     ret := []string{"Add New..."}
-    for _, s := range a.UrlList {
+    for _, s := range a.RadioList {
         ret = append(ret, s.Name)
     }
     return ret
 }
 
 func (a *Application) selectedRadio(name string) (*Radio, error) {
-    for _, r := range a.UrlList {
+    for _, r := range a.RadioList {
         if r.Name == name {
             return &r, nil
         }
