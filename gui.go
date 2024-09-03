@@ -11,15 +11,17 @@ import (
     "fyne.io/fyne/v2/widget"
 )
 
+const AppId = "sk.hq.r0b0.mpd-radio"
+
 func main() {
     ctx := context.Background()
-    fyneApp := app.New()
+    fyneApp := app.NewWithID(AppId)
     fyneWindow := fyneApp.NewWindow("MPD Radio")
     fyneWindow.Resize(fyne.NewSize(640, 480))
-    application, err := loadApp()
+    application, err := loadApp(fyneApp)
     if err != nil {
         dialog.ShowError(err, fyneWindow)
-        application = &Application{}
+        application = &Application{fyneApp: fyneApp}
     }
 
     playerLabel := widget.NewLabel("Player")
@@ -102,7 +104,14 @@ func main() {
             if err != nil {
                 return
             }
-            go showPlayerStatus(statusLabel, playerSelected)
+            go func() {
+                err := showPlayerStatus(statusLabel, playerSelected)
+                if err != nil {
+                    dialog.ShowError(fmt.Errorf("failed to show status of player %s: %w",
+                                                playerSelected.Address, err),
+                                    fyneWindow)
+                }
+            }()
         }
     }
     fyneWindow.Show()

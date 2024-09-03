@@ -3,11 +3,13 @@ package main
 import (
     "encoding/json"
     "fmt"
+    "fyne.io/fyne/v2"
 )
 
 type Application struct {
     PlayerList []*MpdClient
     RadioList  []Radio
+    fyneApp    fyne.App
 }
 
 func (a *Application) store() error {
@@ -15,23 +17,20 @@ func (a *Application) store() error {
     if err != nil {
         return err
     }
-    err = saveConfig(string(data))
-    if err != nil {
-        return err
-    }
+    a.fyneApp.Preferences().SetString("config", string(data))
     return nil
 }
 
-func loadApp() (*Application, error) {
-    data, err := loadConfig()
-    if err != nil {
-        return nil, err
-    }
+func loadApp(fyneApp fyne.App) (*Application, error) {
+    data := fyneApp.Preferences().String("config")
     var application Application
-    err = json.Unmarshal([]byte(data), &application)
-    if err != nil {
-        return nil, err
+    if data != "" {
+        err := json.Unmarshal([]byte(data), &application)
+        if err != nil {
+            return nil, err
+        }
     }
+    application.fyneApp = fyneApp
     return &application, nil
 }
 
