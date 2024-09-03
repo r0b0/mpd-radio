@@ -67,3 +67,40 @@ func (a *Application) selectedRadio(name string) (*Radio, error) {
 	}
 	return nil, fmt.Errorf("radio not found")
 }
+
+func play(radio *Radio, player *MpdClient) error {
+	_, err := player.Command("clear")
+	if err != nil {
+		return err
+	}
+	addIdData, err := player.Command(fmt.Sprintf("addid \"%s\" 0", radio.Url))
+	if err != nil {
+		return err
+	}
+	addIdData.Print()
+	id, ok := addIdData.response["Id"]
+	if !ok {
+		return fmt.Errorf("failed to get id of added song")
+	}
+	_, err = player.Command(fmt.Sprintf("playid %s", id))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func stop(player *MpdClient) error {
+	_, err := player.Command("stop")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func pause(player *MpdClient) error {
+	_, err := player.Command("pause")
+	if err != nil {
+		return err
+	}
+	return nil
+}

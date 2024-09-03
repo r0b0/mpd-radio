@@ -20,9 +20,10 @@ func main() {
 	fyneWindow.Resize(fyne.NewSize(640, 480))
 	application, err := loadApp(fyneApp)
 	if err != nil {
-		dialog.ShowError(err, fyneWindow)
+		dialog.ShowError(err, fyneWindow) // XXX not sure if allowed here
 		application = &Application{fyneApp: fyneApp}
 	}
+	var statusLabel *widget.Label
 
 	playerLabel := widget.NewLabel("Player")
 	var playerDropdown *widget.Select
@@ -48,20 +49,58 @@ func main() {
 		})
 
 	playButton := widget.NewButtonWithIcon("Play", theme.MediaPlayIcon(), func() {
-		fmt.Printf("Play button pressed\n")
-		// TODO
+		radioSelected, err := application.selectedRadio(radioDropdown.Selected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+			return
+		}
+		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+			return
+		}
+		err = play(radioSelected, playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
+		err = showPlayerStatus(statusLabel, playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
 	})
 	stopButton := widget.NewButtonWithIcon("Stop", theme.MediaStopIcon(), func() {
-		fmt.Printf("Stop button pressed\n")
-		// TODO
+		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+			return
+		}
+		err = stop(playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
+		err = showPlayerStatus(statusLabel, playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
 	})
 	pauseButton := widget.NewButtonWithIcon("Pause", theme.MediaPauseIcon(), func() {
-		fmt.Printf("Pause button pressed\n")
-		// TODO
+		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+			return
+		}
+		err = pause(playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
+		err = showPlayerStatus(statusLabel, playerSelected)
+		if err != nil {
+			dialog.ShowError(err, fyneWindow)
+		}
 	})
 	buttonsBox := container.NewHBox(playButton, stopButton, pauseButton)
 
-	statusLabel := widget.NewLabel("")
+	statusLabel = widget.NewLabel("")
 
 	commandLabel := widget.NewLabel("Command")
 	commandEntry := widget.NewEntry()
@@ -199,12 +238,16 @@ func showPlayerStatus(statusLabel *widget.Label, player *MpdClient) error {
 		if err != nil {
 			return err
 		}
+		songData.Print()
+		var playing string
 		name, ok := songData.response["Name"]
-		if !ok {
-			return nil
+		if ok {
+			playing = name
 			// TODO check for other fields?
+		} else {
+			playing = songData.response["file"]
 		}
-		statusLabel.SetText(fmt.Sprintf("Playing: %s", name))
+		statusLabel.SetText(fmt.Sprintf("Playing: %s", playing))
 	case "stop":
 		statusLabel.SetText("Stopped")
 	case "pause":
