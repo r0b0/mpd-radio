@@ -3,7 +3,7 @@ Website = "https://github.com/r0b0/mpd-radio"
 [Details]
   Icon = "Icon.png"
   Name = "MPD Radio"
-  ID = "sk.hq.r0b0.mpd-radio"
+  ID = "sk.hq.r0b0.mpdradio"
   Version = "0.24.09"
   Build = 2
 

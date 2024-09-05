@@ -11,7 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const AppId = "sk.hq.r0b0.mpd-radio"
+const AppId = "sk.hq.r0b0.mpdradio"
 
 func main() {
 	fyneApp := app.NewWithID(AppId)
