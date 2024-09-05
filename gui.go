@@ -14,165 +14,108 @@ import (
 const AppId = "sk.hq.r0b0.mpd-radio"
 
 func main() {
-	ctx := context.Background()
 	fyneApp := app.NewWithID(AppId)
-	fyneWindow := fyneApp.NewWindow("MPD Radio")
-	fyneWindow.Resize(fyne.NewSize(640, 480))
-	application, err := loadApp(fyneApp)
+	a, err := loadApp(fyneApp)
 	if err != nil {
-		dialog.ShowError(err, fyneWindow) // XXX not sure if allowed here
-		application = &Application{fyneApp: fyneApp}
+		fmt.Printf("failed to load app: %s\n", err)
+		a = &Application{fyneApp: fyneApp}
 	}
-	var statusLabel *widget.Label
+	a.ctx = context.Background()
+	a.fyneParent = fyneApp.NewWindow("MPD Radio")
+	a.fyneParent.Resize(fyne.NewSize(640, 480))
 
 	playerLabel := widget.NewLabel("Player")
-	var playerDropdown *widget.Select
-	playerDropdown = widget.NewSelect(
-		application.showPlayerList(), nil)
-
-	radioLabel := widget.NewLabel("Radio")
-	var radioDropdown *widget.Select
-	radioDropdown = widget.NewSelect(
-		application.showRadioList(), func(s string) {
+	a.playerDropdown = widget.NewSelect(
+		a.showPlayerList(), func(s string) {
 			switch s {
 			case "Add New...":
-				addNewRadio(fyneWindow, func(radio Radio) {
-					application.RadioList = append(application.RadioList, radio)
-					radioDropdown.SetOptions(application.showRadioList())
-					radioDropdown.SetSelected(radio.Name)
-					err := application.store()
-					if err != nil {
-						dialog.ShowError(err, fyneWindow)
-					}
-				})
+				go a.addNewPlayer()
+			default:
+				go a.showPlayerStatus()
+			}
+		})
+
+	radioLabel := widget.NewLabel("Radio")
+	a.radioDropdown = widget.NewSelect(
+		a.showRadioList(), func(s string) {
+			switch s {
+			case "Add New...":
+				a.addNewRadio()
 			}
 		})
 
 	playButton := widget.NewButtonWithIcon("Play", theme.MediaPlayIcon(), func() {
-		radioSelected, err := application.selectedRadio(radioDropdown.Selected)
+		err = a.play()
 		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-			return
+			dialog.ShowError(err, a.fyneParent)
 		}
-		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-			return
-		}
-		err = play(radioSelected, playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
-		err = showPlayerStatus(statusLabel, playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
+		a.showPlayerStatus()
 	})
 	stopButton := widget.NewButtonWithIcon("Stop", theme.MediaStopIcon(), func() {
-		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		err = a.stop()
 		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-			return
+			dialog.ShowError(err, a.fyneParent)
 		}
-		err = stop(playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
-		err = showPlayerStatus(statusLabel, playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
+		a.showPlayerStatus()
 	})
 	pauseButton := widget.NewButtonWithIcon("Pause", theme.MediaPauseIcon(), func() {
-		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		err = a.pause()
 		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-			return
+			dialog.ShowError(err, a.fyneParent)
 		}
-		err = pause(playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
-		err = showPlayerStatus(statusLabel, playerSelected)
-		if err != nil {
-			dialog.ShowError(err, fyneWindow)
-		}
+		a.showPlayerStatus()
 	})
 	buttonsBox := container.NewHBox(playButton, stopButton, pauseButton)
 
-	statusLabel = widget.NewLabel("")
+	a.statusLabel = widget.NewLabel("")
 
 	commandLabel := widget.NewLabel("Command")
 	commandEntry := widget.NewEntry()
 	commandEntry.OnSubmitted = func(s string) {
-		playerSelected, err := application.selectedPlayer(playerDropdown.Selected)
+		playerSelected, err := a.selectedPlayer()
 		if err != nil {
-			dialog.ShowError(err, fyneWindow)
+			dialog.ShowError(err, a.fyneParent)
 			return
 		}
-		fmt.Printf("Command executed: %s for %v\n", commandEntry.Text, playerSelected)
 		resp, err := playerSelected.Command(commandEntry.Text)
 		if err != nil {
-			dialog.ShowError(err, fyneWindow)
+			dialog.ShowError(err, a.fyneParent)
 			return
 		}
 		resp.Print()
 	}
 
-	fyneWindow.SetContent(container.NewVBox(
-		playerLabel, playerDropdown,
-		radioLabel, radioDropdown,
+	a.fyneParent.SetContent(container.NewVBox(
+		playerLabel, a.playerDropdown,
+		radioLabel, a.radioDropdown,
 		buttonsBox,
-		statusLabel,
+		a.statusLabel,
 		commandLabel, commandEntry))
 
-	playerDropdown.OnChanged = func(s string) {
-		switch s {
-		case "Add New...":
-			addNewPlayer(ctx, fyneWindow, func(player *MpdClient) {
-				application.PlayerList = append(application.PlayerList, player)
-				playerDropdown.SetOptions(application.showPlayerList())
-				playerDropdown.SetSelected(player.Address)
-				err := application.store()
-				if err != nil {
-					dialog.ShowError(err, fyneWindow)
-				}
-			})
-		default:
-			playerSelected, err := application.selectedPlayer(s)
-			if err != nil {
-				return
-			}
-			go func() {
-				err := showPlayerStatus(statusLabel, playerSelected)
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("failed to show status of player %s: %w",
-						playerSelected.Address, err),
-						fyneWindow)
-				}
-			}()
-		}
-	}
-	fyneWindow.Show()
+	a.fyneParent.Show()
 
-	for _, c := range application.PlayerList {
-		err = c.Connect(ctx)
-		if err != nil {
-			dialog.ShowError(
-				fmt.Errorf("failed to connect to player %s: %fyneWindow",
-					c.Address, err),
-				fyneWindow)
-		} else {
-			if playerDropdown.Selected == "" {
-				playerDropdown.SetSelected(c.Address)
-			}
-		}
+	for _, p := range a.PlayerList {
+		go a.connectPlayer(p)
 	}
 
 	fyneApp.Run()
 }
 
-func addNewPlayer(ctx context.Context, parent fyne.Window, cb func(client *MpdClient)) {
+func (a *Application) connectPlayer(player *MpdClient) {
+	err := player.Connect(a.ctx)
+	if err != nil {
+		dialog.ShowError(
+			fmt.Errorf("failed to connect to player %s: %s",
+				player.Address, err),
+			a.fyneParent)
+	} else {
+		if a.playerDropdown.Selected == "" {
+			a.playerDropdown.SetSelected(player.Address)
+		}
+	}
+}
+
+func (a *Application) addNewPlayer() {
 	hostEntry := widget.NewEntry()
 	portEntry := widget.NewEntry()
 	portEntry.SetText("6600")
@@ -186,15 +129,21 @@ func addNewPlayer(ctx context.Context, parent fyne.Window, cb func(client *MpdCl
 		formItems,
 		func(b bool) {
 			if b {
-				client, err := NewMpdClient(ctx, hostEntry.Text, portEntry.Text)
+				player, err := NewMpdClient(a.ctx, hostEntry.Text, portEntry.Text)
 				if err != nil {
-					dialog.ShowError(err, parent)
+					dialog.ShowError(err, a.fyneParent)
 					return
 				}
-				cb(client)
+				a.PlayerList = append(a.PlayerList, player)
+				a.playerDropdown.SetOptions(a.showPlayerList())
+				a.playerDropdown.SetSelected(player.Address)
+				err = a.store()
+				if err != nil {
+					dialog.ShowError(err, a.fyneParent)
+				}
 			}
 		},
-		parent)
+		a.fyneParent)
 }
 
 type Radio struct {
@@ -202,7 +151,7 @@ type Radio struct {
 	Url  string
 }
 
-func addNewRadio(parent fyne.Window, cb func(Radio)) {
+func (a *Application) addNewRadio() {
 	nameEntry := widget.NewEntry()
 	urlEntry := widget.NewEntry()
 	formItems := []*widget.FormItem{
@@ -215,43 +164,25 @@ func addNewRadio(parent fyne.Window, cb func(Radio)) {
 		formItems,
 		func(b bool) {
 			if b {
-				cb(Radio{nameEntry.Text, urlEntry.Text})
+				radio := Radio{nameEntry.Text, urlEntry.Text}
+				a.RadioList = append(a.RadioList, radio)
+				a.radioDropdown.SetOptions(a.showRadioList())
+				a.radioDropdown.SetSelected(radio.Name)
+				err := a.store()
+				if err != nil {
+					dialog.ShowError(err, a.fyneParent)
+				}
 			}
 		},
-		parent)
+		a.fyneParent)
 }
 
-func showPlayerStatus(statusLabel *widget.Label, player *MpdClient) error {
-	data, err := player.Command("status")
-	statusLabel.SetText("")
+func (a *Application) showPlayerStatus() {
+	status, err := a.getPlayerStatus()
 	if err != nil {
-		return err
+		dialog.ShowError(err, a.fyneParent)
+		a.statusLabel.SetText("")
+		return
 	}
-	data.Print() // TODO
-	status, ok := data.response["state"]
-	if !ok {
-		return fmt.Errorf("failed to get player status")
-	}
-	switch status {
-	case "play":
-		songData, err := player.Command("currentsong")
-		if err != nil {
-			return err
-		}
-		songData.Print()
-		var playing string
-		name, ok := songData.response["Name"]
-		if ok {
-			playing = name
-			// TODO check for other fields?
-		} else {
-			playing = songData.response["file"]
-		}
-		statusLabel.SetText(fmt.Sprintf("Playing: %s", playing))
-	case "stop":
-		statusLabel.SetText("Stopped")
-	case "pause":
-		statusLabel.SetText("Paused")
-	}
-	return nil
+	a.statusLabel.SetText(status)
 }
