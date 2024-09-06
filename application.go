@@ -84,8 +84,8 @@ func (a *Application) getPlayerStatus() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data.Print() // TODO
-	status, ok := data.response["state"]
+	data.Print()
+	status, ok := data.Response["state"]
 	if !ok {
 		return "", fmt.Errorf("failed to get player status")
 	}
@@ -97,12 +97,12 @@ func (a *Application) getPlayerStatus() (string, error) {
 		}
 		songData.Print()
 		var playing string
-		name, ok := songData.response["Name"]
+		name, ok := songData.Response["Name"]
 		if ok {
 			playing = name
 			// TODO check for other fields?
 		} else {
-			playing = songData.response["file"]
+			playing = songData.Response["file"]
 		}
 		return fmt.Sprintf("Playing: %s", playing), nil
 	case "stop":
@@ -132,7 +132,7 @@ func (a *Application) play() error {
 		return err
 	}
 	addIdData.Print()
-	id, ok := addIdData.response["Id"]
+	id, ok := addIdData.Response["Id"]
 	if !ok {
 		return fmt.Errorf("failed to get id of added song")
 	}

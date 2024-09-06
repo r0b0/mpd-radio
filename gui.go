@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -14,6 +16,9 @@ import (
 const AppId = "sk.hq.r0b0.mpdradio"
 
 func main() {
+	commandFlag := flag.Bool("Command", true, "Show a Command windows")
+	flag.Parse()
+
 	fyneApp := app.NewWithID(AppId)
 	a, err := loadApp(fyneApp)
 	if err != nil {
@@ -22,7 +27,7 @@ func main() {
 	}
 	a.ctx = context.Background()
 	a.fyneParent = fyneApp.NewWindow("MPD Radio")
-	a.fyneParent.Resize(fyne.NewSize(640, 480))
+	a.fyneParent.Resize(fyne.NewSize(640, 0))
 
 	playerLabel := widget.NewLabel("Player")
 	a.playerDropdown = widget.NewSelect(
@@ -69,28 +74,37 @@ func main() {
 
 	a.statusLabel = widget.NewLabel("")
 
-	commandLabel := widget.NewLabel("Command")
-	commandEntry := widget.NewEntry()
-	commandEntry.OnSubmitted = func(s string) {
-		playerSelected, err := a.selectedPlayer()
-		if err != nil {
-			dialog.ShowError(err, a.fyneParent)
-			return
+	if *commandFlag {
+		commandLabel := widget.NewLabel("Command")
+		commandEntry := widget.NewEntry()
+		commandEntry.OnSubmitted = func(s string) {
+			playerSelected, err := a.selectedPlayer()
+			if err != nil {
+				dialog.ShowError(err, a.fyneParent)
+				return
+			}
+			resp, err := playerSelected.Command(commandEntry.Text)
+			if err != nil {
+				dialog.ShowError(err, a.fyneParent)
+				return
+			}
+			resp.Print()
+			a.displayMpdData(&resp)
 		}
-		resp, err := playerSelected.Command(commandEntry.Text)
-		if err != nil {
-			dialog.ShowError(err, a.fyneParent)
-			return
-		}
-		resp.Print()
-	}
 
-	a.fyneParent.SetContent(container.NewVBox(
-		playerLabel, a.playerDropdown,
-		radioLabel, a.radioDropdown,
-		buttonsBox,
-		a.statusLabel,
-		commandLabel, commandEntry))
+		a.fyneParent.SetContent(container.NewVBox(
+			playerLabel, a.playerDropdown,
+			radioLabel, a.radioDropdown,
+			buttonsBox,
+			a.statusLabel,
+			commandLabel, commandEntry))
+	} else {
+		a.fyneParent.SetContent(container.NewVBox(
+			playerLabel, a.playerDropdown,
+			radioLabel, a.radioDropdown,
+			buttonsBox,
+			a.statusLabel))
+	}
 
 	a.fyneParent.Show()
 
@@ -185,4 +199,19 @@ func (a *Application) showPlayerStatus() {
 		return
 	}
 	a.statusLabel.SetText(status)
+}
+
+func (a *Application) displayMpdData(d *MpdData) {
+	grid := layout.NewGridLayout(2)
+	cont := container.New(grid,
+		widget.NewLabel("Command"), widget.NewLabel(d.Command))
+
+	for k, v := range d.Response {
+		cont.Add(widget.NewLabel(k))
+		cont.Add(widget.NewLabel(v))
+	}
+	cont.Add(widget.NewLabel("OK"))
+	cont.Add(widget.NewLabel(d.Ok))
+
+	dialog.ShowCustom("Data from player", "OK", cont, a.fyneParent)
 }

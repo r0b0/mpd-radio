@@ -12,29 +12,31 @@ import (
 )
 
 type MpdData struct {
-	response map[string]string
-	binary   []byte
-	ok       string
-	unparsed []string
+	Command  string
+	Response map[string]string
+	Binary   []byte
+	Ok       string
+	Unparsed []string
 }
 
 func NewMpdData() MpdData {
 	data := MpdData{}
-	data.response = make(map[string]string)
+	data.Response = make(map[string]string)
 	return data
 }
 
-func (data *MpdData) Print() {
-	for k, v := range data.response {
+func (d *MpdData) Print() {
+	fmt.Printf("Original Command: %s\n", d.Command)
+	for k, v := range d.Response {
 		fmt.Printf("Received '%s': '%s'\n", k, v)
 	}
-	for _, line := range data.unparsed {
-		fmt.Printf("Received unparsed line: '%s'\n", line)
+	for _, line := range d.Unparsed {
+		fmt.Printf("Received Unparsed line: '%s'\n", line)
 	}
-	for _, line := range data.binary {
-		fmt.Printf("Received binary: '%v'\n", line)
+	for _, line := range d.Binary {
+		fmt.Printf("Received Binary: '%v'\n", line)
 	}
-	fmt.Printf("Received ok: %s\n", data.ok)
+	fmt.Printf("Received Ok: %s\n", d.Ok)
 }
 
 type MpdClient struct {
@@ -55,45 +57,48 @@ func NewMpdClient(ctx context.Context, host string, port string) (*MpdClient, er
 	return &client, nil
 }
 
-func (client *MpdClient) Connect(ctx context.Context) error {
+func (c *MpdClient) Connect(ctx context.Context) error {
 	var err error
-	client.conn, err = net.Dial("tcp", client.Address)
+	c.conn, err = net.Dial("tcp", c.Address)
 	if err != nil {
 		return err
 	}
-	data, err := recv(client.conn)
+	data, err := c.recv()
 	if err != nil {
 		return err
 	}
 	data.Print()
-	go client.Ping(ctx)
+	go c.Ping(ctx)
 	return nil
 }
 
-func (client *MpdClient) Ping(ctx context.Context) {
+func (c *MpdClient) Ping(ctx context.Context) {
 	for {
-		_, err := client.Command("ping")
+		_, err := c.Command("ping")
 		if err != nil {
 			fmt.Printf("error when pinging: %v\n", err)
 			return
 		}
 		select {
 		case <-ctx.Done():
-			fmt.Printf("Closing the pinger goroutine for %s", client.Address)
+			fmt.Printf("Closing the pinger goroutine for %s", c.Address)
 			return
 		case <-time.After(30 * time.Second):
 		}
 	}
 }
 
-func (client *MpdClient) Close() {
-	_ = client.conn.Close()
+func (c *MpdClient) Close() {
+	_ = c.conn.Close()
+	c.conn = nil
 }
 
-func recv(conn io.ReadWriter) (MpdData, error) {
+const MaxBinarySize = 1024 * 1024
+
+func (c *MpdClient) recv() (MpdData, error) {
 	data := NewMpdData()
 	byteBuffer := make([]byte, 4096)
-	n, err := conn.Read(byteBuffer)
+	n, err := c.conn.Read(byteBuffer)
 	if err != nil {
 		return data, err
 	}
@@ -107,7 +112,7 @@ func recv(conn io.ReadWriter) (MpdData, error) {
 				lineStart = i + 1
 				after, has := strings.CutPrefix(line, "OK")
 				if has {
-					data.ok = strings.TrimSpace(after)
+					data.Ok = strings.TrimSpace(after)
 					return data, nil
 				}
 
@@ -116,39 +121,45 @@ func recv(conn io.ReadWriter) (MpdData, error) {
 					return data, fmt.Errorf("error from daemon: %s", after)
 				}
 
-				after, has = strings.CutPrefix(line, "binary: ")
+				after, has = strings.CutPrefix(line, "Binary: ")
 				if has {
 					readingBinary, err = strconv.Atoi(after)
 					if err != nil {
 						return data, err
 					}
+					if readingBinary > MaxBinarySize {
+						c.Close()
+						return data, fmt.Errorf("server requested binary size %d", readingBinary)
+					}
 				}
 
 				k, v, has := strings.Cut(line, ": ")
 				if has {
-					data.response[k] = v
+					data.Response[k] = v
 				} else {
-					data.unparsed = append(data.unparsed, line)
+					data.Unparsed = append(data.Unparsed, line)
 				}
 			}
 		} else {
-			data.binary = append(data.binary, r)
+			data.Binary = append(data.Binary, r)
 			readingBinary--
 		}
 	}
 	return data, fmt.Errorf("not enough data read from socket")
 }
 
-func (client *MpdClient) Command(command string) (MpdData, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-	fmt.Printf("Running command %s\n", command)
-	if client.conn == nil {
-		return MpdData{}, fmt.Errorf("client not connected")
+func (c *MpdClient) Command(command string) (MpdData, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	fmt.Printf("Running Command %s\n", command)
+	if c.conn == nil {
+		return MpdData{}, fmt.Errorf("c not connected")
 	}
-	_, err := client.conn.Write([]byte(fmt.Sprintf("%s\n", command)))
+	_, err := c.conn.Write([]byte(fmt.Sprintf("%s\n", command)))
 	if err != nil {
 		return MpdData{}, err
 	}
-	return recv(client.conn)
+	resp, err := c.recv()
+	resp.Command = command
+	return resp, err
 }
