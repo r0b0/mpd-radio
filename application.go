@@ -8,6 +8,12 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type NotFoundError struct{}
+
+func (e *NotFoundError) Error() string {
+	return "not found"
+}
+
 type Application struct {
 	PlayerList     []*MpdClient
 	RadioList      []Radio
@@ -16,6 +22,7 @@ type Application struct {
 	playerDropdown *widget.Select
 	radioDropdown  *widget.Select
 	statusLabel    *widget.Label
+	statusIcon     *widget.Activity
 	ctx            context.Context
 }
 
@@ -49,13 +56,13 @@ func (a *Application) showPlayerList() []string {
 	return ret
 }
 
-func (a *Application) selectedPlayer() (*MpdClient, error) {
-	for _, s := range a.PlayerList {
+func (a *Application) selectedPlayer() (int, *MpdClient, error) {
+	for i, s := range a.PlayerList {
 		if s.Address == a.playerDropdown.Selected {
-			return s, nil
+			return i, s, nil
 		}
 	}
-	return nil, fmt.Errorf("server not found")
+	return -1, nil, &NotFoundError{}
 }
 
 func (a *Application) showRadioList() []string {
@@ -66,34 +73,34 @@ func (a *Application) showRadioList() []string {
 	return ret
 }
 
-func (a *Application) selectedRadio() (*Radio, error) {
-	for _, r := range a.RadioList {
+func (a *Application) selectedRadio() (int, *Radio, error) {
+	for i, r := range a.RadioList {
 		if r.Name == a.radioDropdown.Selected {
-			return &r, nil
+			return i, &r, nil
 		}
 	}
-	return nil, fmt.Errorf("radio not found")
+	return -1, nil, &NotFoundError{}
 }
 
-func (a *Application) getPlayerStatus() (string, error) {
-	player, err := a.selectedPlayer()
+func (a *Application) getPlayerStatus() (string, bool, error) {
+	_, player, err := a.selectedPlayer()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	data, err := player.Command("status")
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	data.Print()
 	status, ok := data.Response["state"]
 	if !ok {
-		return "", fmt.Errorf("failed to get player status")
+		return "", false, fmt.Errorf("failed to get player status")
 	}
 	switch status {
 	case "play":
 		songData, err := player.Command("currentsong")
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		songData.Print()
 		var playing string
@@ -104,22 +111,22 @@ func (a *Application) getPlayerStatus() (string, error) {
 		} else {
 			playing = songData.Response["file"]
 		}
-		return fmt.Sprintf("Playing: %s", playing), nil
+		return fmt.Sprintf("Playing: %s", playing), true, nil
 	case "stop":
-		return "Stopped", nil
+		return "Stopped", false, nil
 	case "pause":
-		return "Paused", nil
+		return "Paused", false, nil
 	}
-	return "", nil
+	return "", false, nil
 
 }
 
 func (a *Application) play() error {
-	player, err := a.selectedPlayer()
+	_, player, err := a.selectedPlayer()
 	if err != nil {
 		return err
 	}
-	radio, err := a.selectedRadio()
+	_, radio, err := a.selectedRadio()
 	if err != nil {
 		return err
 	}
@@ -144,7 +151,7 @@ func (a *Application) play() error {
 }
 
 func (a *Application) stop() error {
-	player, err := a.selectedPlayer()
+	_, player, err := a.selectedPlayer()
 	if err != nil {
 		return err
 	}
@@ -156,7 +163,7 @@ func (a *Application) stop() error {
 }
 
 func (a *Application) pause() error {
-	player, err := a.selectedPlayer()
+	_, player, err := a.selectedPlayer()
 	if err != nil {
 		return err
 	}
