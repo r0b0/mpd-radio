@@ -17,7 +17,7 @@ import (
 
 const AppId = "sk.hq.r0b0.mpdradio"
 
-func main() {
+func fynemain() {
 	commandFlag := flag.Bool("command", false, "Show a MPD command window")
 	flag.Parse()
 
