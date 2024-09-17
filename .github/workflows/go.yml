@@ -17,11 +17,6 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23'
-        
-    - uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: build-essential libgl1-mesa-dev xorg-dev
-        version: 1.0
 
     - name: Build
       run: go build -ldflags "-s -w" -v ./...
@@ -43,17 +38,14 @@ jobs:
       with:
         go-version: '1.23'
         
-    - name: Install the fyne build tool
-      run: go install fyne.io/fyne/v2/cmd/fyne@latest
-
     - name: Build
-      run: fyne package --release
+      run: go build -ldflags "-s -w" -v ./...
       
     - name: Production artifact
       uses: actions/upload-artifact@v4
       with:
         name: windows-x86-64
-        path: "MPD Radio.exe"
+        path: "mpd_radio.exe"
         
         
   build-macos-x86-64:
@@ -66,19 +58,15 @@ jobs:
       with:
         go-version: '1.23'
 
-    - name: Install the fyne build tool
-      run: go install fyne.io/fyne/v2/cmd/fyne@latest
-
     - name: Build
-      run: fyne package --release
+      run: go build -ldflags "-s -w" -v ./...
       
     - name: Production artifact
       uses: actions/upload-artifact@v4
       with:
         name: macos-x86-64
-        path: "MPD Radio.app"
+        path: mpd_radio
         
-
   build-macos-arm64:
     runs-on: macos-14
     steps:
@@ -89,45 +77,11 @@ jobs:
       with:
         go-version: '1.23'
 
-    - name: Install the fyne build tool
-      run: go install fyne.io/fyne/v2/cmd/fyne@latest
-
     - name: Build
-      run: fyne package --release
+      run: go build -ldflags "-s -w" -v ./...
       
     - name: Production artifact
       uses: actions/upload-artifact@v4
       with:
         name: macos-arm64
-        path: "MPD Radio.app"
-
-  build-android:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-
-    - name: Install the fyne build tool
-      run: go install fyne.io/fyne/v2/cmd/fyne@latest
-
-    - name: Setup java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '21'
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Build
-      run: fyne package -os android --release
-
-    - name: Production artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: android
-        path: MPD_Radio.apk
+        path: mpd_radio

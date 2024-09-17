@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>MPD Radio</title>
+        <script src="https://unpkg.com/htmx.org@2.0.2"></script>
+    </head>
+    <body>
+        <div>
+        <label>
+            Player
+            <select name="player">
+                {{define "PlayerSelect"}}
+                    {{ range .PlayerList }}
+                        <option value="{{ .Address }}">{{ .Address }}</option>
+                    {{ end }}
+                {{end}}
+                {{template "PlayerSelect" .}}
+            </select>
+        </label>
+        <button onclick="document.getElementById('addPlayerDialog').showModal()">+</button>
+        <button hx-delete="/player" hx-include="[name='player']" hx-target="[name='player']">-</button>
+        </div>
+        <dialog id="addPlayerDialog">
+            <label>
+                Host
+                <input type="text" name="playerHost">
+            </label>
+            <label>
+                Port
+                <input type="text" name="playerPort" value="6600">
+            </label>
+            <button hx-put="/player" hx-include="[name='playerHost'], [name='playerPort']" hx-target="[name='player']">OK</button><!-- TODO close the dialog -->
+            <button onclick="document.getElementById('addPlayerDialog').close()">Cancel</button>
+        </dialog>
+
+        <div>
+        <label>
+            Radio
+            <select name="radio">
+                {{define "RadioSelect"}}
+                    {{ range .RadioList }}
+                        <option value="{{ .Url }}">{{ .Name }}</option>
+                    {{ end }}
+                {{end}}
+                {{template "RadioSelect" .}}
+            </select>
+        </label>
+        <button onclick="document.getElementById('addRadioDialog').showModal()">+</button>
+        <button hx-delete="/radio" hx-include="[name='radio']" hx-target="[name='radio']">-</button>
+        </div>
+        <dialog id="addRadioDialog">
+            <label>
+                Name
+                <input type="text" name="radioName">
+            </label>
+            <label>
+                URL
+                <input type="text" name="radioUrl">
+            </label>
+            <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']">OK</button><!-- TODO close the dialog -->
+            <button onclick="document.getElementById('addRadioDialog').close()">Cancel</button>
+        </dialog>
+
+        <div>
+            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#status">
+                <button name="play">Play</button>
+                <button name="stop">Stop</button>
+                <button name="pause">Pause</button>
+            </form>
+        </div>
+
+        <div id="status"></div>
+    </body>
+</html>
