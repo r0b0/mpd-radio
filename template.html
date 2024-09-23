@@ -4,72 +4,99 @@
         <meta charset="UTF-8">
         <title>MPD Radio</title>
         <script src="https://unpkg.com/htmx.org@2.0.2"></script>
+        <script>
+function openDialog(name) {
+    document.getElementById(name).showModal()
+}
+function closeDialog(name) {
+    document.getElementById(name).close()
+}
+        </script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+        <style>
+.master-column {
+    grid-column: span 5;
+}
+        </style>
     </head>
     <body>
-        <div>
-        <label>
-            Player
-            <select name="player">
-                {{define "PlayerSelect"}}
-                    {{ range .PlayerList }}
-                        <option value="{{ .Address }}">{{ .Address }}</option>
-                    {{ end }}
-                {{end}}
-                {{template "PlayerSelect" .}}
-            </select>
-        </label>
-        <button onclick="document.getElementById('addPlayerDialog').showModal()">+</button>
-        <button hx-delete="/player" hx-include="[name='player']" hx-target="[name='player']">-</button>
-        </div>
-        <dialog id="addPlayerDialog">
-            <label>
-                Host
-                <input type="text" name="playerHost">
-            </label>
-            <label>
-                Port
-                <input type="text" name="playerPort" value="6600">
-            </label>
-            <button hx-put="/player" hx-include="[name='playerHost'], [name='playerPort']" hx-target="[name='player']">OK</button><!-- TODO close the dialog -->
-            <button onclick="document.getElementById('addPlayerDialog').close()">Cancel</button>
-        </dialog>
+        <main class="container">
+            <h1>Player</h1>
+            <fieldset class="grid">
+                <select name="player" class="master-column">
+                    {{define "PlayerSelect"}}
+                        {{ range .PlayerList }}
+                            <option value="{{ .Address }}">{{ .Address }}</option>
+                        {{ end }}
+                    {{end}}
+                    {{template "PlayerSelect" .}}
+                </select>
+                <button onclick="openDialog('addPlayerDialog')">+</button>
+                <button hx-delete="/player" hx-include="[name='player']" hx-target="[name='player']">-</button>
+            </fieldset>
+            <dialog id="addPlayerDialog">
+                <article>
+                    <header><h1>Add player</h1></header>
+                    <label>
+                        Host
+                        <input type="text" name="playerHost">
+                    </label>
+                    <label>
+                        Port
+                        <input type="text" name="playerPort" value="6600">
+                    </label>
+                    <footer>
+                        <button hx-put="/player" hx-include="[name='playerHost'], [name='playerPort']" hx-target="[name='player']"
+                                hx-on::after-request="closeDialog('addPlayerDialog')">OK</button>
+                        <button class="secondary" onclick="closeDialog('addPlayerDialog')">Cancel</button>
+                    </footer>
+                </article>
+            </dialog>
 
-        <div>
-        <label>
-            Radio
-            <select name="radio">
-                {{define "RadioSelect"}}
-                    {{ range .RadioList }}
-                        <option value="{{ .Url }}">{{ .Name }}</option>
-                    {{ end }}
-                {{end}}
-                {{template "RadioSelect" .}}
-            </select>
-        </label>
-        <button onclick="document.getElementById('addRadioDialog').showModal()">+</button>
-        <button hx-delete="/radio" hx-include="[name='radio']" hx-target="[name='radio']">-</button>
-        </div>
-        <dialog id="addRadioDialog">
-            <label>
-                Name
-                <input type="text" name="radioName">
-            </label>
-            <label>
-                URL
-                <input type="text" name="radioUrl">
-            </label>
-            <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']">OK</button><!-- TODO close the dialog -->
-            <button onclick="document.getElementById('addRadioDialog').close()">Cancel</button>
-        </dialog>
+            <h1>Radio</h1>
+            <fieldset class="grid">
+                <select class="master-column" name="radio">
+                    {{define "RadioSelect"}}
+                        {{ range .RadioList }}
+                            <option value="{{ .Url }}">{{ .Name }}</option>
+                        {{ end }}
+                    {{end}}
+                    {{template "RadioSelect" .}}
+                </select>
+                <button onclick="openDialog('addRadioDialog')">+</button>
+                <button hx-delete="/radio" hx-include="[name='radio']" hx-target="[name='radio']">-</button>
+            </fieldset>
+            <dialog id="addRadioDialog">
+                <article>
+                    <header><h1>Add radio</h1></header>
+                    <label>
+                        Name
+                        <input type="text" name="radioName">
+                    </label>
+                    <label>
+                        URL
+                        <input type="text" name="radioUrl">
+                    </label>
+                    <footer>
+                        <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']"
+                                hx-on::after-request="closeDialog('addRadioDialog')">OK</button>
+                        <button class="secondary" onclick="closeDialog('addRadioDialog')">Cancel</button>
+                    </footer>
+                </article>
+            </dialog>
 
-        <div>
             <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#status">
-                <button name="play">Play</button>
-                <button name="stop">Stop</button>
-                <button name="pause">Pause</button>
+                <fieldset class="grid">
+                    <button name="play">Play</button>
+                    <button name="stop">Stop</button>
+                    <button name="pause">Pause</button>
+                </fieldset>
             </form>
-        </div>
 
-        <div id="status"></div>
+            <article>
+                <header>Status</header>
+                <div id="status"></div>
+            </article>
+        </main>
     </body>
 </html>

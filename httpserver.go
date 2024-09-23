@@ -8,7 +8,6 @@ import (
     "html/template"
     "log"
     "log/slog"
-    "net"
     "net/http"
     "os"
     "slices"
@@ -82,7 +81,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if r.Method == "DELETE" && r.URL.Path == "/player" {
-		err := c.RemovePlayer(r.Form.Get("playerHost"), r.Form.Get("playerPort"))
+		err := c.RemovePlayer(r.Form.Get("player"))
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to remove player: %v", err), 500)
 			return
@@ -163,8 +162,7 @@ func (c *Context) RemoveRadio(name string) error {
 	return fmt.Errorf("radio not found")
 }
 
-func (c *Context) RemovePlayer(host string, port string) error {
-	address := net.JoinHostPort(host, port)
+func (c *Context) RemovePlayer(address string) error {
 	for i, p := range c.PlayerList {
 		if p.Address == address {
 			c.PlayerList = slices.Delete(c.PlayerList, i, i+1)
