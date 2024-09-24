@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io"
+    "errors"
+    "fmt"
+    "io"
 	"net"
 	"strconv"
 	"strings"
@@ -24,6 +25,8 @@ func NewMpdData() MpdData {
 	data.Response = make(map[string]string)
 	return data
 }
+
+var NotConnectedError = fmt.Errorf("not connected")
 
 func (d *MpdData) Print() {
 	fmt.Printf("Original Command: %s\n", d.Command)
@@ -77,11 +80,15 @@ func (c *MpdClient) Ping(ctx context.Context) {
 		_, err := c.Command("ping")
 		if err != nil {
 			fmt.Printf("error when pinging: %v\n", err)
+			_ = c.conn.Close()
+			c.conn = nil
 			return
 		}
 		select {
 		case <-ctx.Done():
 			fmt.Printf("Closing the pinger goroutine for %s", c.Address)
+			_ = c.conn.Close()
+			c.conn = nil
 			return
 		case <-time.After(30 * time.Second):
 		}
@@ -153,7 +160,7 @@ func (c *MpdClient) Command(command string) (MpdData, error) {
 	defer c.mu.Unlock()
 	fmt.Printf("Running Command %s\n", command)
 	if c.conn == nil {
-		return MpdData{}, fmt.Errorf("c not connected")
+		return MpdData{}, NotConnectedError
 	}
 	_, err := c.conn.Write([]byte(fmt.Sprintf("%s\n", command)))
 	if err != nil {
@@ -162,4 +169,18 @@ func (c *MpdClient) Command(command string) (MpdData, error) {
 	resp, err := c.recv()
 	resp.Command = command
 	return resp, err
+}
+
+func (c *MpdClient) CommandOrReconnect(ctx context.Context, command string) (MpdData, error) {
+	resp, err := c.Command(command)
+	if errors.Is(err, NotConnectedError) {
+		time.Sleep(1 * time.Second)
+		err := c.Connect(ctx)
+		if err != nil {
+			return MpdData{}, err
+		}
+		return c.Command(command)
+	} else {
+		return resp, err
+	}
 }

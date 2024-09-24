@@ -21,7 +21,8 @@ function closeDialog(name) {
     </head>
     <body>
         <main class="container">
-            <h1>Player</h1>
+            <h1>MPD Radio</h1>
+            <h2>Player</h2>
             <fieldset class="grid">
                 <select name="player" class="master-column">
                     {{define "PlayerSelect"}}
@@ -36,7 +37,7 @@ function closeDialog(name) {
             </fieldset>
             <dialog id="addPlayerDialog">
                 <article>
-                    <header><h1>Add player</h1></header>
+                    <header><h2>Add player</h2></header>
                     <label>
                         Host
                         <input type="text" name="playerHost">
@@ -53,7 +54,7 @@ function closeDialog(name) {
                 </article>
             </dialog>
 
-            <h1>Radio</h1>
+            <h2>Radio</h2>
             <fieldset class="grid">
                 <select class="master-column" name="radio">
                     {{define "RadioSelect"}}
@@ -68,7 +69,7 @@ function closeDialog(name) {
             </fieldset>
             <dialog id="addRadioDialog">
                 <article>
-                    <header><h1>Add radio</h1></header>
+                    <header><h2>Add radio</h2></header>
                     <label>
                         Name
                         <input type="text" name="radioName">
@@ -95,7 +96,12 @@ function closeDialog(name) {
 
             <article>
                 <header>Status</header>
-                <div id="status"></div>
+                <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">
+                    {{define "Status"}}
+                    {{ .Status }}
+                    {{end}}
+                    {{template "Status" .}}
+                </div>
             </article>
         </main>
     </body>
