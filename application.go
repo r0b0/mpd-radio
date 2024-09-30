@@ -145,13 +145,14 @@ func (c *Context) updateStatus(url string) error {
 		}
 		songData.Print()
 		var playing string
-		name, ok := songData.Response["Name"]
-		if ok {
-			playing = name
-			// TODO check for other fields?
-		} else {
-			playing = songData.Response["file"]
-		}
+        tags := []string{"Title", "Name", "file"}
+        for _, tag := range tags {
+            name, ok := songData.Response[tag]
+            if ok {
+                playing = name
+                break
+            }
+        }
 		c.Status = fmt.Sprintf("Playing: %s", playing)
 	case "stop":
 		c.Status = "Stopped"
