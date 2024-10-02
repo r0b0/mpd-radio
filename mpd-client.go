@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -29,17 +30,17 @@ func NewMpdData() MpdData {
 var NotConnectedError = fmt.Errorf("not connected")
 
 func (d *MpdData) Print() {
-	fmt.Printf("Original Command: %s\n", d.Command)
+	slog.Debug("Command", "value", d.Command)
 	for k, v := range d.Response {
-		fmt.Printf("Received '%s': '%s'\n", k, v)
+		slog.Debug("  Response", "key", k, "value", v)
 	}
 	for _, line := range d.Unparsed {
-		fmt.Printf("Received Unparsed line: '%s'\n", line)
+		slog.Debug("  Unparsed line", "value", line)
 	}
 	for _, line := range d.Binary {
-		fmt.Printf("Received Binary: '%v'\n", line)
+		slog.Debug("  Binary", "value", line)
 	}
-	fmt.Printf("Received Ok: %s\n", d.Ok)
+	slog.Debug("  Ok", "value", d.Ok)
 }
 
 type MpdClient struct {
@@ -79,14 +80,14 @@ func (c *MpdClient) Ping(ctx context.Context) {
 	for {
 		_, err := c.Command("ping")
 		if err != nil {
-			fmt.Printf("error when pinging: %v\n", err)
+			slog.Error("error when pinging", "error", err)
 			_ = c.conn.Close()
 			c.conn = nil
 			return
 		}
 		select {
 		case <-ctx.Done():
-			fmt.Printf("Closing the pinger goroutine for %s", c.Address)
+			slog.Info("Closing the pinger goroutine", "address", c.Address)
 			_ = c.conn.Close()
 			c.conn = nil
 			return
@@ -158,7 +159,7 @@ func (c *MpdClient) recv() (MpdData, error) {
 func (c *MpdClient) Command(command string) (MpdData, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Printf("Running Command %s\n", command)
+	slog.Debug("Running Command", "command", command)
 	if c.conn == nil {
 		return MpdData{}, NotConnectedError
 	}

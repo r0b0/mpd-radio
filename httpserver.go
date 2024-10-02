@@ -5,8 +5,8 @@ import (
 	"embed"
 	"flag"
 	"html/template"
-    "io/fs"
-    "log"
+	"io/fs"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -53,12 +53,15 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		radioUrl := r.Form.Get("radio")
 		if r.Form.Has("play") {
 			c.Status = "playing"
+			c.IsPlaying = true
 			err = c.Play(player, radioUrl)
 		} else if r.Form.Has("stop") {
 			c.Status = "stopping"
+			c.IsPlaying = false
 			err = c.Stop(player)
 		} else if r.Form.Has("pause") {
 			c.Status = "pausing"
+			c.IsPlaying = false
 			err = c.Pause(player)
 		} else {
 			httpError(w, 400, "unknown command")

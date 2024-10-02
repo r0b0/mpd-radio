@@ -19,6 +19,7 @@ type Context struct {
 	PlayerList    []*MpdClient
 	RadioList     []Radio
 	Status        string
+	IsPlaying     bool
 	statusUpdated time.Time
 	template      *template.Template
 	ctx           context.Context
@@ -153,10 +154,13 @@ func (c *Context) updateStatus(url string) error {
 			}
 		}
 		c.Status = fmt.Sprintf("Playing: %s", playing)
+		c.IsPlaying = true
 	case "stop":
 		c.Status = "Stopped"
+		c.IsPlaying = false
 	case "pause":
 		c.Status = "Paused"
+		c.IsPlaying = false
 	}
 	return nil
 }

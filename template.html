@@ -38,7 +38,7 @@
                     </label>
                     <footer>
                         <button hx-put="/player" hx-include="[name='playerHost'], [name='playerPort']" hx-target="[name='player']"
-                                hx-on::after-request="closeDialog('addPlayerDialog')">OK</button>
+                                hx-on--after-request="closeDialog('addPlayerDialog')">OK</button>
                         <button class="secondary" onclick="closeDialog('addPlayerDialog')">Cancel</button>
                     </footer>
                 </article>
@@ -70,7 +70,7 @@
                     </label>
                     <footer>
                         <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']"
-                                hx-on::after-request="closeDialog('addRadioDialog')">OK</button>
+                                hx-on--after-request="closeDialog('addRadioDialog')">OK</button>
                         <button class="secondary" onclick="closeDialog('addRadioDialog')">Cancel</button>
                     </footer>
                 </article>
@@ -88,7 +88,10 @@
                 <header>Status</header>
                 <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">
                     {{define "Status"}}
-                    {{ .Status }}
+                        {{if .IsPlaying}}
+                            <span class="animate">♫</span>
+                        {{end}}
+                        {{ .Status }}
                     {{end}}
                     {{template "Status" .}}
                 </div>

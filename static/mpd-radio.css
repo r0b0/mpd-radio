@@ -1,3 +1,16 @@
 .master-column {
     grid-column: span 5;
 }
+
+.animate {
+    animation: blink 800ms infinite alternate;
+}
+
+@keyframes blink {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
