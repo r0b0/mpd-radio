@@ -5,7 +5,8 @@ import (
 	"embed"
 	"flag"
 	"html/template"
-	"log"
+    "io/fs"
+    "log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +14,9 @@ import (
 
 //go:embed template.html
 var templateFile embed.FS
+
+//go:embed static
+var staticFiles embed.FS
 
 func httpError(w http.ResponseWriter, code int, message string, args ...any) {
 	slog.Error(message, args)
@@ -36,6 +40,32 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		err = c.updateStatus(r.Form.Get("player"))
 		if err != nil {
 			httpError(w, 500, "failed to get player status", "error", err)
+			return
+		}
+	} else if r.URL.Path == "/command" {
+		templateName = "Status"
+		playerUrl := r.Form.Get("player")
+		player, err := c.FindPlayer(playerUrl)
+		if err != nil {
+			httpError(w, 400, "player not found", "error", err, "url", playerUrl)
+			return
+		}
+		radioUrl := r.Form.Get("radio")
+		if r.Form.Has("play") {
+			c.Status = "playing"
+			err = c.Play(player, radioUrl)
+		} else if r.Form.Has("stop") {
+			c.Status = "stopping"
+			err = c.Stop(player)
+		} else if r.Form.Has("pause") {
+			c.Status = "pausing"
+			err = c.Pause(player)
+		} else {
+			httpError(w, 400, "unknown command")
+			return
+		}
+		if err != nil {
+			httpError(w, 500, "failed processing command", "error", err)
 			return
 		}
 	} else if r.Method == "PUT" && r.URL.Path == "/player" {
@@ -94,45 +124,6 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *Context) commandHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
-	if err != nil {
-		httpError(w, 400, "failed to parse form", "error", err)
-		return
-	}
-	//	slog.Debug("request", "r", r)
-	w.Header().Add("Content-Type", "text/html")
-	playerUrl := r.Form.Get("player")
-	player, err := c.FindPlayer(playerUrl)
-	if err != nil {
-		httpError(w, 400, "player not found", "error", err, "url", playerUrl)
-		return
-	}
-	radioUrl := r.Form.Get("radio")
-	if r.Form.Has("play") {
-		c.Status = "playing"
-		err = c.Play(player, radioUrl)
-	} else if r.Form.Has("stop") {
-		c.Status = "stopping"
-		err = c.Stop(player)
-	} else if r.Form.Has("pause") {
-		c.Status = "pausing"
-		err = c.Pause(player)
-	} else {
-		httpError(w, 400, "unknown command")
-		return
-	}
-	if err != nil {
-		httpError(w, 500, "failed processing command", "error", err)
-		return
-	}
-	err = c.template.ExecuteTemplate(w, "Status", c)
-	if err != nil {
-		httpError(w, 500, "failed processing template", "error", err)
-		return
-	}
-}
-
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	slog.SetDefault(logger)
@@ -157,8 +148,10 @@ func main() {
 	http.HandleFunc("/", c.commonHandler)
 	http.HandleFunc("/player", c.commonHandler)
 	http.HandleFunc("/radio", c.commonHandler)
+	http.HandleFunc("/command", c.commonHandler)
 
-	http.HandleFunc("/command", c.commandHandler)
+	static, _ := fs.Sub(staticFiles, ".")
+	http.Handle("/static/", http.FileServerFS(static))
 
 	log.Fatal(http.ListenAndServe(*listenFlag, nil))
 }

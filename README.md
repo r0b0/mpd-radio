@@ -1,4 +1,4 @@
-![MPD Radio icon](Icon.png)
+![MPD Radio icon](static/Icon.png)
 # MPD Radio
 Listen to internet radios using your MPD servers
 
