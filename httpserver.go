@@ -37,7 +37,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		templateName = "template.html"
 	} else if r.URL.Path == "/status" {
 		templateName = "Status"
-		err = c.updateStatus(r.Form.Get("player"))
+		err = c.UpdateStatus(r.Form.Get("player"))
 		if err != nil {
 			httpError(w, 500, "failed to get player status", "error", err)
 			return
@@ -145,7 +145,7 @@ func main() {
 	c.ctx = context.Background()
 
 	for _, p := range c.PlayerList {
-		go c.connectPlayer(p)
+		go c.ConnectPlayer(p)
 	}
 
 	http.HandleFunc("/", c.commonHandler)

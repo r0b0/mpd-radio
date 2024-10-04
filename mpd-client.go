@@ -31,9 +31,11 @@ var NotConnectedError = fmt.Errorf("not connected")
 
 func (d *MpdData) Print() {
 	slog.Debug("Command", "value", d.Command)
+	responseValues := []slog.Attr{}
 	for k, v := range d.Response {
-		slog.Debug("  Response", "key", k, "value", v)
+		responseValues = append(responseValues, slog.String(k, v))
 	}
+	slog.LogAttrs(nil, slog.LevelDebug, "  Response", responseValues...)
 	for _, line := range d.Unparsed {
 		slog.Debug("  Unparsed line", "value", line)
 	}
@@ -46,6 +48,7 @@ func (d *MpdData) Print() {
 type MpdClient struct {
 	Address string
 	conn    io.ReadWriteCloser
+	lastUse time.Time
 	mu      sync.Mutex
 }
 
@@ -53,7 +56,10 @@ func NewMpdClient(ctx context.Context, host string, port string) (*MpdClient, er
 	if port == "" {
 		port = "6600"
 	}
-	client := MpdClient{net.JoinHostPort(host, port), nil, sync.Mutex{}}
+	client := MpdClient{net.JoinHostPort(host, port),
+		nil,
+		time.Now(),
+		sync.Mutex{}}
 	err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -72,24 +78,28 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 		return err
 	}
 	data.Print()
+	c.lastUse = time.Now()
 	go c.Ping(ctx)
 	return nil
 }
 
 func (c *MpdClient) Ping(ctx context.Context) {
 	for {
-		_, err := c.Command("ping")
+		if time.Now().After(c.lastUse.Add(60 * time.Second)) {
+			slog.Info("No command for 60 seconds, disconnecting")
+			c.Close()
+			return
+		}
+		_, err := c.commandLow("ping")
 		if err != nil {
 			slog.Error("error when pinging", "error", err)
-			_ = c.conn.Close()
-			c.conn = nil
+			c.Close()
 			return
 		}
 		select {
 		case <-ctx.Done():
 			slog.Info("Closing the pinger goroutine", "address", c.Address)
-			_ = c.conn.Close()
-			c.conn = nil
+			c.Close()
 			return
 		case <-time.After(30 * time.Second):
 		}
@@ -97,6 +107,8 @@ func (c *MpdClient) Ping(ctx context.Context) {
 }
 
 func (c *MpdClient) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_ = c.conn.Close()
 	c.conn = nil
 }
@@ -136,7 +148,8 @@ func (c *MpdClient) recv() (MpdData, error) {
 						return data, err
 					}
 					if readingBinary > MaxBinarySize {
-						c.Close()
+						_ = c.conn.Close()
+						c.conn = nil
 						return data, fmt.Errorf("server requested binary size %d", readingBinary)
 					}
 				}
@@ -156,7 +169,7 @@ func (c *MpdClient) recv() (MpdData, error) {
 	return data, fmt.Errorf("not enough data read from socket")
 }
 
-func (c *MpdClient) Command(command string) (MpdData, error) {
+func (c *MpdClient) commandLow(command string) (MpdData, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	slog.Debug("Running Command", "command", command)
@@ -170,6 +183,11 @@ func (c *MpdClient) Command(command string) (MpdData, error) {
 	resp, err := c.recv()
 	resp.Command = command
 	return resp, err
+}
+
+func (c *MpdClient) Command(command string) (MpdData, error) {
+	c.lastUse = time.Now()
+	return c.commandLow(command)
 }
 
 func (c *MpdClient) CommandOrReconnect(ctx context.Context, command string) (MpdData, error) {

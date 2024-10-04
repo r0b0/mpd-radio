@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const AppVersion = "24.10"
+
 type Radio struct {
 	Name string
 	Url  string
@@ -23,16 +25,17 @@ type Context struct {
 	statusUpdated time.Time
 	template      *template.Template
 	ctx           context.Context
+	AppVersion    string
 }
 
-func (c *Context) connectPlayer(p *MpdClient) {
+func (c *Context) ConnectPlayer(p *MpdClient) {
 	err := p.Connect(c.ctx)
 	if err != nil {
 		slog.Error("Failed to connect player %s: %s", p.Address, err)
 		return
 	}
 	if c.Status == "" {
-		_ = c.updateStatus(p.Address)
+		_ = c.UpdateStatus(p.Address)
 	}
 }
 
@@ -118,7 +121,7 @@ func (c *Context) Store() error {
 	return saveConfig(j)
 }
 
-func (c *Context) updateStatus(url string) error {
+func (c *Context) UpdateStatus(url string) error {
 	if time.Now().Before(c.statusUpdated.Add(10 * time.Second)) {
 		slog.Debug("status is still ok, no need to fetch")
 		return nil
@@ -168,10 +171,12 @@ func (c *Context) updateStatus(url string) error {
 func Load() *Context {
 	j, err := loadConfig()
 	c := Context{}
+	c.AppVersion = AppVersion
 	if err != nil {
 		return &c
 	}
 	err = json.Unmarshal(j, &c)
+	c.AppVersion = AppVersion
 	if err != nil {
 		return &c
 	}

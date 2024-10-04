@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path"
 )
@@ -12,7 +13,6 @@ func loadConfig() ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	// XXX make the directory if not exist
 	data, err := os.ReadFile(path.Join(d, CONFIG_FILE))
 	if err != nil {
 		return []byte{}, err
@@ -25,7 +25,10 @@ func saveConfig(data []byte) error {
 	if err != nil {
 		return err
 	}
-	// XXX make the directory if not exist
+	err = os.MkdirAll(d, 0750)
+	if err != nil {
+		return fmt.Errorf("failed to create config dir: %w", err)
+	}
 	err = os.WriteFile(path.Join(d, CONFIG_FILE), data, 0600)
 	return err
 }

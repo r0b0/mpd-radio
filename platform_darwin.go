@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path"
 )
@@ -23,6 +24,10 @@ func saveConfig(data []byte) error {
 	d, err := os.UserConfigDir()
 	if err != nil {
 		return err
+	}
+	err = os.MkdirAll(d, 0750)
+	if err != nil {
+		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 	err = os.WriteFile(path.Join(d, CONFIG_FILE), data, 0600)
 	return err
