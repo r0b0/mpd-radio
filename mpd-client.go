@@ -30,6 +30,7 @@ func NewMpdData() MpdData {
 var NotConnectedError = fmt.Errorf("not connected")
 
 func (d *MpdData) Print() {
+	// TODO have a level parameter
 	slog.Debug("Command", "value", d.Command)
 	responseValues := []slog.Attr{}
 	for k, v := range d.Response {
@@ -50,6 +51,7 @@ type MpdClient struct {
 	conn    io.ReadWriteCloser
 	lastUse time.Time
 	mu      sync.Mutex
+	// TODO have a logger per radio
 }
 
 func NewMpdClient(ctx context.Context, host string, port string) (*MpdClient, error) {

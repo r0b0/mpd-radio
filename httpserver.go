@@ -132,6 +132,8 @@ func main() {
 	slog.SetDefault(logger)
 
 	listenFlag := flag.String("p", "127.0.0.1:6680", "listen address and port")
+	// TODO have a flag for debug
+	// TODO check if running as a systemd service and don't output timestamp (or at least have a flag)
 	flag.Parse()
 
 	c := Load()

@@ -169,6 +169,7 @@ func (c *Context) UpdateStatus(url string) error {
 }
 
 func Load() *Context {
+	// TODO mark Status as "" so it is refreshed from actual servers
 	j, err := loadConfig()
 	c := Context{}
 	c.AppVersion = AppVersion
