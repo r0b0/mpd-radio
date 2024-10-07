@@ -1,0 +1,13 @@
+# /etc/systemd/system/mpd_radio.service
+
+[Unit]
+Description=MPD Radio
+After=network-online.target mpd.service
+Wants=network-online.target mpd.service
+
+[Service]
+ExecStart=/usr/local/bin/mpd_radio -p localhost:6680 -t
+User=mpdradio
+
+[Install]
+WantedBy=multi-user.target

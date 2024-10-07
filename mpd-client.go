@@ -14,6 +14,7 @@ import (
 )
 
 type MpdData struct {
+	client   *MpdClient
 	Command  string
 	Response map[string]string
 	Binary   []byte
@@ -21,8 +22,9 @@ type MpdData struct {
 	Unparsed []string
 }
 
-func NewMpdData() MpdData {
+func NewMpdData(client *MpdClient) MpdData {
 	data := MpdData{}
+	data.client = client
 	data.Response = make(map[string]string)
 	return data
 }
@@ -30,20 +32,22 @@ func NewMpdData() MpdData {
 var NotConnectedError = fmt.Errorf("not connected")
 
 func (d *MpdData) Print() {
-	// TODO have a level parameter
-	slog.Debug("Command", "value", d.Command)
+	if d.client == nil || d.client.logger == nil {
+		return
+	}
+	d.client.logger.Debug("Command", "value", d.Command)
 	responseValues := []slog.Attr{}
 	for k, v := range d.Response {
 		responseValues = append(responseValues, slog.String(k, v))
 	}
-	slog.LogAttrs(nil, slog.LevelDebug, "  Response", responseValues...)
+	d.client.logger.LogAttrs(nil, slog.LevelDebug, "  Response", responseValues...)
 	for _, line := range d.Unparsed {
-		slog.Debug("  Unparsed line", "value", line)
+		d.client.logger.Debug("  Unparsed line", "value", line)
 	}
 	for _, line := range d.Binary {
-		slog.Debug("  Binary", "value", line)
+		d.client.logger.Debug("  Binary", "value", line)
 	}
-	slog.Debug("  Ok", "value", d.Ok)
+	d.client.logger.Debug("  Ok", "value", d.Ok)
 }
 
 type MpdClient struct {
@@ -51,17 +55,19 @@ type MpdClient struct {
 	conn    io.ReadWriteCloser
 	lastUse time.Time
 	mu      sync.Mutex
-	// TODO have a logger per radio
+	logger  *slog.Logger
 }
 
-func NewMpdClient(ctx context.Context, host string, port string) (*MpdClient, error) {
+func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Logger) (*MpdClient, error) {
 	if port == "" {
 		port = "6600"
 	}
-	client := MpdClient{net.JoinHostPort(host, port),
+	address := net.JoinHostPort(host, port)
+	client := MpdClient{address,
 		nil,
 		time.Now(),
-		sync.Mutex{}}
+		sync.Mutex{},
+		parent.With("player address", address)}
 	err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -88,19 +94,19 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 func (c *MpdClient) Ping(ctx context.Context) {
 	for {
 		if time.Now().After(c.lastUse.Add(60 * time.Second)) {
-			slog.Info("No command for 60 seconds, disconnecting")
+			c.logger.Info("No command for 60 seconds, disconnecting")
 			c.Close()
 			return
 		}
 		_, err := c.commandLow("ping")
 		if err != nil {
-			slog.Error("error when pinging", "error", err)
+			c.logger.Error("error when pinging", "error", err)
 			c.Close()
 			return
 		}
 		select {
 		case <-ctx.Done():
-			slog.Info("Closing the pinger goroutine", "address", c.Address)
+			c.logger.Info("Closing the pinger goroutine", "address", c.Address)
 			c.Close()
 			return
 		case <-time.After(30 * time.Second):
@@ -118,7 +124,7 @@ func (c *MpdClient) Close() {
 const MaxBinarySize = 1024 * 1024
 
 func (c *MpdClient) recv() (MpdData, error) {
-	data := NewMpdData()
+	data := NewMpdData(c)
 	byteBuffer := make([]byte, 4096)
 	n, err := c.conn.Read(byteBuffer)
 	if err != nil {
@@ -174,7 +180,7 @@ func (c *MpdClient) recv() (MpdData, error) {
 func (c *MpdClient) commandLow(command string) (MpdData, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	slog.Debug("Running Command", "command", command)
+	c.logger.Debug("Running Command", "command", command)
 	if c.conn == nil {
 		return MpdData{}, NotConnectedError
 	}

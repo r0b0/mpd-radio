@@ -78,6 +78,7 @@
 
             <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#status">
                 <fieldset class="grid">
+                    <!-- TODO graphical buttons -->
                     <button name="play">Play</button>
                     <button name="stop">Stop</button>
                     <button name="pause">Pause</button>
@@ -92,6 +93,7 @@
                             <span class="animate">♫</span>
                         {{end}}
                         {{ .Status }}
+                        <title hx-swap-oob="title">{{ .Status }} - MPD Radio</title>
                     {{end}}
                     {{template "Status" .}}
                 </div>

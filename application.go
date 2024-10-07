@@ -29,6 +29,9 @@ type Context struct {
 }
 
 func (c *Context) ConnectPlayer(p *MpdClient) {
+	if p.logger == nil {
+		p.logger = slog.With("player address", p.Address)
+	}
 	err := p.Connect(c.ctx)
 	if err != nil {
 		slog.Error("Failed to connect player %s: %s", p.Address, err)
@@ -147,16 +150,14 @@ func (c *Context) UpdateStatus(url string) error {
 			return err
 		}
 		songData.Print()
-		var playing string
 		tags := []string{"Title", "Name", "file"}
 		for _, tag := range tags {
 			name, ok := songData.Response[tag]
 			if ok {
-				playing = name
+				c.Status = name
 				break
 			}
 		}
-		c.Status = fmt.Sprintf("Playing: %s", playing)
 		c.IsPlaying = true
 	case "stop":
 		c.Status = "Stopped"
@@ -169,7 +170,6 @@ func (c *Context) UpdateStatus(url string) error {
 }
 
 func Load() *Context {
-	// TODO mark Status as "" so it is refreshed from actual servers
 	j, err := loadConfig()
 	c := Context{}
 	c.AppVersion = AppVersion
@@ -177,9 +177,10 @@ func Load() *Context {
 		return &c
 	}
 	err = json.Unmarshal(j, &c)
-	c.AppVersion = AppVersion
 	if err != nil {
-		return &c
+		slog.Error("failed to unmarshall application context; using default empty context: %v", err)
 	}
+	c.AppVersion = AppVersion
+	c.Status = "" // force reload from the server
 	return &c
 }

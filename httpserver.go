@@ -73,7 +73,10 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if r.Method == "PUT" && r.URL.Path == "/player" {
 		templateName = "PlayerSelect"
-		player, err := NewMpdClient(c.ctx, r.Form.Get("playerHost"), r.Form.Get("playerPort"))
+		player, err := NewMpdClient(c.ctx,
+			r.Form.Get("playerHost"),
+			r.Form.Get("playerPort"),
+			slog.Default())
 		if err != nil {
 			httpError(w, 500, "failed to connect to mpd server", "error", err)
 			return
@@ -128,13 +131,21 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	slog.SetDefault(logger)
-
 	listenFlag := flag.String("p", "127.0.0.1:6680", "listen address and port")
-	// TODO have a flag for debug
-	// TODO check if running as a systemd service and don't output timestamp (or at least have a flag)
+	quietFlag := flag.Bool("q", false, "skip debugging output")
+	skipTimeStampFlag := flag.Bool("t", false, "skip timestamps in output")
 	flag.Parse()
+
+	handlerOptions := slog.HandlerOptions{}
+	if !*quietFlag {
+		handlerOptions.Level = slog.LevelDebug
+	}
+	if *skipTimeStampFlag {
+		handlerOptions.ReplaceAttr = replaceAttrFuncRemoveTime
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &handlerOptions))
+	slog.SetDefault(logger)
 
 	c := Load()
 
@@ -151,12 +162,18 @@ func main() {
 	}
 
 	http.HandleFunc("/", c.commonHandler)
-	http.HandleFunc("/player", c.commonHandler)
-	http.HandleFunc("/radio", c.commonHandler)
-	http.HandleFunc("/command", c.commonHandler)
 
 	static, _ := fs.Sub(staticFiles, ".")
 	http.Handle("/static/", http.FileServerFS(static))
 
 	log.Fatal(http.ListenAndServe(*listenFlag, nil))
+}
+
+// helper function not to log timestamp
+func replaceAttrFuncRemoveTime(_ []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.TimeKey {
+		return slog.Attr{}
+	} else {
+		return a
+	}
 }
