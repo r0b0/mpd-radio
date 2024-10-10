@@ -85,6 +85,18 @@
                 </fieldset>
             </form>
 
+            <h2>Volume</h2>
+            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#volume_range" hx-swap="outerHTML">
+                <fieldset class="grid">
+                    {{define "VolumeRange" }}
+                    <input id="volume_range" type="range" class="master-column" disabled value="{{ .Volume }}" />
+                    {{end }}
+                    {{template "VolumeRange" .}}
+                    <button name="volume_up">+</button>
+                    <button name="volume_down">-</button>
+                </fieldset>
+            </form>
+
             <article>
                 <header>Status</header>
                 <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">

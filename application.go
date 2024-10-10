@@ -7,7 +7,8 @@ import (
 	"html/template"
 	"log/slog"
 	"slices"
-	"time"
+    "strconv"
+    "time"
 )
 
 const AppVersion = "24.10"
@@ -22,6 +23,7 @@ type Context struct {
 	RadioList     []Radio
 	Status        string
 	IsPlaying     bool
+	Volume		  int
 	statusUpdated time.Time
 	template      *template.Template
 	ctx           context.Context
@@ -134,12 +136,12 @@ func (c *Context) UpdateStatus(url string) error {
 		return err
 	}
 	c.statusUpdated = time.Now()
-	data, err := player.CommandOrReconnect(c.ctx, "status")
+	statusData, err := player.CommandOrReconnect(c.ctx, "status")
 	if err != nil {
 		return err
 	}
-	data.Print()
-	status, ok := data.Response["state"]
+	statusData.Print()
+	status, ok := statusData.Response["state"]
 	if !ok {
 		return fmt.Errorf("failed to get player status")
 	}
@@ -166,7 +168,35 @@ func (c *Context) UpdateStatus(url string) error {
 		c.Status = "Paused"
 		c.IsPlaying = false
 	}
+
+	volume, ok := statusData.Response["volume"]
+	if !ok {
+		slog.Warn("Failed to fetch volume from status response")
+		volume = "0"
+	}
+	c.Volume, err = strconv.Atoi(volume)
+	if err != nil {
+		slog.Warn("Failed to parse volume from status response")
+		c.Volume = 0
+	}
+	if c.Volume < 0 || c.Volume > 100 {
+		slog.Warn("Invalid volume value from status respose")
+		c.Volume = 0
+	}
+
 	return nil
+}
+
+func (c *Context) UpdateVolume(player *MpdClient, change int) error {
+	c.Volume += change
+	if c.Volume < 0 {
+		c.Volume = 0
+	}
+	if c.Volume > 100 {
+		c.Volume = 100
+	}
+    _, err := player.CommandOrReconnect(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
+    return err
 }
 
 func Load() *Context {

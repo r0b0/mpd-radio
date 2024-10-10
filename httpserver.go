@@ -63,6 +63,12 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 			c.Status = "pausing"
 			c.IsPlaying = false
 			err = c.Pause(player)
+		} else if r.Form.Has("volume_up") {
+			templateName = "VolumeRange"
+			err = c.UpdateVolume(player, 10)
+		} else if r.Form.Has("volume_down") {
+			templateName = "VolumeRange"
+			err = c.UpdateVolume(player, -10)
 		} else {
 			httpError(w, 400, "unknown command")
 			return
