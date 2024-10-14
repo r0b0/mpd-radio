@@ -35,6 +35,10 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" && r.URL.Path == "/" {
 		templateName = "template.html"
+	} else if r.Method == "GET" && r.URL.Path == "/player" {
+		templateName = "PlayerSelect"
+		playerUrl := r.Form.Get("player")
+		_, _ = c.FindPlayer(playerUrl)
 	} else if r.URL.Path == "/status" {
 		templateName = "Status"
 		err = c.UpdateStatus(r.Form.Get("player"))
@@ -88,6 +92,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c.PlayerList = append(c.PlayerList, player)
+		_, _ = c.FindPlayer(player.Address) // just to mark it selected
 		err = c.Store()
 		if err != nil {
 			httpError(w, 500, "failed to store app status", "error", err)

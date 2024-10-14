@@ -51,11 +51,12 @@ func (d *MpdData) Print() {
 }
 
 type MpdClient struct {
-	Address string
-	conn    io.ReadWriteCloser
-	lastUse time.Time
-	mu      sync.Mutex
-	logger  *slog.Logger
+	Address      string
+	conn         io.ReadWriteCloser
+	lastUse      time.Time
+	mu           sync.Mutex
+	logger       *slog.Logger
+	pingerCancel context.CancelFunc
 }
 
 func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Logger) (*MpdClient, error) {
@@ -67,7 +68,8 @@ func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Lo
 		nil,
 		time.Now(),
 		sync.Mutex{},
-		parent.With("player address", address)}
+		parent.With("player address", address),
+		nil}
 	err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -87,7 +89,9 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 	}
 	data.Print()
 	c.lastUse = time.Now()
-	go c.Ping(ctx)
+	child, cancel := context.WithCancel(ctx)
+	c.pingerCancel = cancel
+	go c.Ping(child)
 	return nil
 }
 
@@ -107,7 +111,6 @@ func (c *MpdClient) Ping(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			c.logger.Info("Closing the pinger goroutine", "address", c.Address)
-			c.Close()
 			return
 		case <-time.After(30 * time.Second):
 		}
@@ -115,6 +118,7 @@ func (c *MpdClient) Ping(ctx context.Context) {
 }
 
 func (c *MpdClient) Close() {
+	c.pingerCancel()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	_ = c.conn.Close()

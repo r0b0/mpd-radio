@@ -14,11 +14,13 @@
             <h1>MPD Radio</h1>
             <h2>Player</h2>
             <fieldset class="grid">
-                <select name="player" class="master-column">
+                <select hx-get="/player" name="player" class="master-column">
                     {{define "PlayerSelect"}}
-                        {{ range .PlayerList }}
-                            <option value="{{ .Address }}">{{ .Address }}</option>
-                        {{ end }}
+                        {{range $i, $p := .PlayerList}}
+                            <option value="{{$p.Address}}" {{if eq $i $.SelectedPlayer}}selected{{end}}>
+                                {{$p.Address}}
+                            </option>
+                        {{end}}
                     {{end}}
                     {{template "PlayerSelect" .}}
                 </select>
@@ -48,9 +50,11 @@
             <fieldset class="grid">
                 <select class="master-column" name="radio">
                     {{define "RadioSelect"}}
-                        {{ range .RadioList }}
-                            <option value="{{ .Url }}">{{ .Name }}</option>
-                        {{ end }}
+                        {{range $i, $r := .RadioList}}
+                            <option value="{{$r.Url}}"  {{if eq $i $.SelectedRadio}}selected{{end}}>
+                                {{ $r.Name }}
+                            </option>
+                        {{end}}
                     {{end}}
                     {{template "RadioSelect" .}}
                 </select>

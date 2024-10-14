@@ -7,8 +7,8 @@ import (
 	"html/template"
 	"log/slog"
 	"slices"
-    "strconv"
-    "time"
+	"strconv"
+	"time"
 )
 
 const AppVersion = "24.10"
@@ -19,15 +19,17 @@ type Radio struct {
 }
 
 type Context struct {
-	PlayerList    []*MpdClient
-	RadioList     []Radio
-	Status        string
-	IsPlaying     bool
-	Volume		  int
-	statusUpdated time.Time
-	template      *template.Template
-	ctx           context.Context
-	AppVersion    string
+	PlayerList     []*MpdClient
+	SelectedPlayer int
+	RadioList      []Radio
+	SelectedRadio  int
+	Status         string
+	IsPlaying      bool
+	Volume         int
+	statusUpdated  time.Time
+	template       *template.Template
+	ctx            context.Context
+	AppVersion     string
 }
 
 func (c *Context) ConnectPlayer(p *MpdClient) {
@@ -42,6 +44,7 @@ func (c *Context) ConnectPlayer(p *MpdClient) {
 	if c.Status == "" {
 		_ = c.UpdateStatus(p.Address)
 	}
+	_, _ = c.FindPlayer(p.Address) // just to mark it selected
 }
 
 func (c *Context) RemoveRadio(name string) error {
@@ -52,6 +55,7 @@ func (c *Context) RemoveRadio(name string) error {
 			if err != nil {
 				return err
 			}
+			c.SelectedRadio = 0
 			return nil
 		}
 	}
@@ -61,6 +65,8 @@ func (c *Context) RemoveRadio(name string) error {
 func (c *Context) RemovePlayer(address string) error {
 	for i, p := range c.PlayerList {
 		if p.Address == address {
+			c.SelectedPlayer = 0
+			p.Close()
 			c.PlayerList = slices.Delete(c.PlayerList, i, i+1)
 			err := c.Store()
 			if err != nil {
@@ -73,15 +79,28 @@ func (c *Context) RemovePlayer(address string) error {
 }
 
 func (c *Context) FindPlayer(url string) (*MpdClient, error) {
-	for _, p := range c.PlayerList {
+	for i, p := range c.PlayerList {
 		if p.Address == url {
+			c.SelectedPlayer = i
 			return p, nil
 		}
 	}
 	return nil, fmt.Errorf("player not found")
 }
 
+func (c *Context) FindRadio(url string) (*Radio, error) {
+	for i, r := range c.RadioList {
+		if r.Url == url {
+			c.SelectedRadio = i
+			return &r, nil
+		}
+	}
+	return nil, fmt.Errorf("radio not found")
+}
+
 func (c *Context) Play(player *MpdClient, url string) error {
+	_, _ = c.FindPlayer(player.Address) // just to mark it selected
+	_, _ = c.FindRadio(url)             // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "clear")
 	if err != nil {
 		return err
@@ -103,6 +122,7 @@ func (c *Context) Play(player *MpdClient, url string) error {
 }
 
 func (c *Context) Stop(player *MpdClient) error {
+	_, _ = c.FindPlayer(player.Address) // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "stop")
 	if err != nil {
 		return err
@@ -111,6 +131,7 @@ func (c *Context) Stop(player *MpdClient) error {
 }
 
 func (c *Context) Pause(player *MpdClient) error {
+	_, _ = c.FindPlayer(player.Address) // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "pause")
 	if err != nil {
 		return err
@@ -195,8 +216,8 @@ func (c *Context) UpdateVolume(player *MpdClient, change int) error {
 	if c.Volume > 100 {
 		c.Volume = 100
 	}
-    _, err := player.CommandOrReconnect(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
-    return err
+	_, err := player.CommandOrReconnect(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
+	return err
 }
 
 func Load() *Context {
