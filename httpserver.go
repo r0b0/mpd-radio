@@ -32,29 +32,28 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 	//	slog.Debug("request", "r", r)
 	w.Header().Add("Content-Type", "text/html")
 	var templateName string
+	playerUrl := r.Form.Get("player")
+	radioUrl := r.Form.Get("radio")
+	player := c.FindPlayer(playerUrl)
 
 	if r.Method == "GET" && r.URL.Path == "/" {
 		templateName = "template.html"
 	} else if r.Method == "GET" && r.URL.Path == "/player" {
 		templateName = "PlayerSelect"
-		playerUrl := r.Form.Get("player")
-		_, _ = c.FindPlayer(playerUrl)
 	} else if r.URL.Path == "/status" {
 		templateName = "Status"
-		err = c.UpdateStatus(r.Form.Get("player"))
+		err = c.UpdateStatus(playerUrl)
 		if err != nil {
 			httpError(w, 500, "failed to get player status", "error", err)
 			return
 		}
 	} else if r.URL.Path == "/command" {
 		templateName = "Status"
-		playerUrl := r.Form.Get("player")
-		player, err := c.FindPlayer(playerUrl)
-		if err != nil {
+		if player == nil {
 			httpError(w, 400, "player not found", "error", err, "url", playerUrl)
 			return
 		}
-		radioUrl := r.Form.Get("radio")
+
 		if r.Form.Has("play") {
 			c.Status = "playing"
 			c.IsPlaying = true
@@ -92,7 +91,6 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c.PlayerList = append(c.PlayerList, player)
-		_, _ = c.FindPlayer(player.Address) // just to mark it selected
 		err = c.Store()
 		if err != nil {
 			httpError(w, 500, "failed to store app status", "error", err)
@@ -100,7 +98,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if r.Method == "DELETE" && r.URL.Path == "/player" {
 		templateName = "PlayerSelect"
-		err := c.RemovePlayer(r.Form.Get("player"))
+		err := c.RemovePlayer(playerUrl)
 		if err != nil {
 			httpError(w, 500, "failed to remove player", "error", err)
 			return
@@ -119,7 +117,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if r.Method == "DELETE" && r.URL.Path == "/radio" {
 		templateName = "RadioSelect"
-		err := c.RemoveRadio(r.Form.Get("radio"))
+		err := c.RemoveRadio(radioUrl)
 		if err != nil {
 			httpError(w, 500, "failed to remove radio", "error", err)
 			return

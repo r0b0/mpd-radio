@@ -44,7 +44,7 @@ func (c *Context) ConnectPlayer(p *MpdClient) {
 	if c.Status == "" {
 		_ = c.UpdateStatus(p.Address)
 	}
-	_, _ = c.FindPlayer(p.Address) // just to mark it selected
+	_ = c.FindPlayer(p.Address) // just to mark it selected
 }
 
 func (c *Context) RemoveRadio(name string) error {
@@ -78,29 +78,29 @@ func (c *Context) RemovePlayer(address string) error {
 	return fmt.Errorf("player not found")
 }
 
-func (c *Context) FindPlayer(url string) (*MpdClient, error) {
+func (c *Context) FindPlayer(url string) *MpdClient {
 	for i, p := range c.PlayerList {
 		if p.Address == url {
 			c.SelectedPlayer = i
-			return p, nil
+			return p
 		}
 	}
-	return nil, fmt.Errorf("player not found")
+	return nil
 }
 
-func (c *Context) FindRadio(url string) (*Radio, error) {
+func (c *Context) FindRadio(url string) *Radio {
 	for i, r := range c.RadioList {
 		if r.Url == url {
 			c.SelectedRadio = i
-			return &r, nil
+			return &r
 		}
 	}
-	return nil, fmt.Errorf("radio not found")
+	return nil
 }
 
 func (c *Context) Play(player *MpdClient, url string) error {
-	_, _ = c.FindPlayer(player.Address) // just to mark it selected
-	_, _ = c.FindRadio(url)             // just to mark it selected
+	_ = c.FindPlayer(player.Address) // just to mark it selected
+	_ = c.FindRadio(url)             // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "clear")
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func (c *Context) Play(player *MpdClient, url string) error {
 }
 
 func (c *Context) Stop(player *MpdClient) error {
-	_, _ = c.FindPlayer(player.Address) // just to mark it selected
+	_ = c.FindPlayer(player.Address) // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "stop")
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *Context) Stop(player *MpdClient) error {
 }
 
 func (c *Context) Pause(player *MpdClient) error {
-	_, _ = c.FindPlayer(player.Address) // just to mark it selected
+	_ = c.FindPlayer(player.Address) // just to mark it selected
 	_, err := player.CommandOrReconnect(c.ctx, "pause")
 	if err != nil {
 		return err
@@ -152,9 +152,9 @@ func (c *Context) UpdateStatus(url string) error {
 		slog.Debug("status is still ok, no need to fetch")
 		return nil
 	}
-	player, err := c.FindPlayer(url)
-	if err != nil {
-		return err
+	player := c.FindPlayer(url)
+	if player == nil {
+		return fmt.Errorf("player not found")
 	}
 	c.statusUpdated = time.Now()
 	statusData, err := player.CommandOrReconnect(c.ctx, "status")
