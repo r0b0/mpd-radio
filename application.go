@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const AppVersion = "24.10"
+const AppVersion = "26.03"
 
 type Radio struct {
 	Name string
@@ -210,6 +210,7 @@ func (c *Context) UpdateStatus(url string) error {
 
 func (c *Context) UpdateVolume(player *MpdClient, change int) error {
 	c.Volume += change
+
 	if c.Volume < 0 {
 		c.Volume = 0
 	}
@@ -229,7 +230,7 @@ func Load() *Context {
 	}
 	err = json.Unmarshal(j, &c)
 	if err != nil {
-		slog.Error("failed to unmarshall application context; using default empty context: %v", err)
+		slog.Error("failed to unmarshall application context; using default empty context", slog.Any("error", err))
 	}
 	c.AppVersion = AppVersion
 	c.Status = "" // force reload from the server

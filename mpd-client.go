@@ -9,7 +9,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -40,7 +39,7 @@ func (d *MpdData) Print() {
 	for k, v := range d.Response {
 		responseValues = append(responseValues, slog.String(k, v))
 	}
-	d.client.logger.LogAttrs(nil, slog.LevelDebug, "  Response", responseValues...)
+	d.client.logger.LogAttrs(context.TODO(), slog.LevelDebug, "  Response", responseValues...)
 	for _, line := range d.Unparsed {
 		d.client.logger.Debug("  Unparsed line", "value", line)
 	}
@@ -53,10 +52,9 @@ func (d *MpdData) Print() {
 type MpdClient struct {
 	Address      string
 	conn         io.ReadWriteCloser
-	lastUse      time.Time
-	mu           sync.Mutex
 	logger       *slog.Logger
 	pingerCancel context.CancelFunc
+	commands     chan string
 }
 
 func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Logger) (*MpdClient, error) {
@@ -66,10 +64,9 @@ func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Lo
 	address := net.JoinHostPort(host, port)
 	client := MpdClient{address,
 		nil,
-		time.Now(),
-		sync.Mutex{},
 		parent.With("player address", address),
-		nil}
+		nil,
+		make(chan string)}
 	err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -88,7 +85,6 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 		return err
 	}
 	data.Print()
-	c.lastUse = time.Now()
 	child, cancel := context.WithCancel(ctx)
 	c.pingerCancel = cancel
 	go c.Ping(child)
@@ -97,11 +93,14 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 
 func (c *MpdClient) Ping(ctx context.Context) {
 	for {
-		if time.Now().After(c.lastUse.Add(60 * time.Second)) {
-			c.logger.Info("No command for 60 seconds, disconnecting")
-			c.Close()
-			return
-		}
+		// XXX bring this back
+		/*
+			if time.Now().After(c.lastUse.Add(60 * time.Second)) {
+				c.logger.Info("No command for 60 seconds, disconnecting")
+				c.Close()
+				return
+			}
+		*/
 		_, err := c.commandLow("ping")
 		if err != nil {
 			c.logger.Error("error when pinging", "error", err)
@@ -119,8 +118,6 @@ func (c *MpdClient) Ping(ctx context.Context) {
 
 func (c *MpdClient) Close() {
 	c.pingerCancel()
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	_ = c.conn.Close()
 	c.conn = nil
 }
@@ -136,7 +133,7 @@ func (c *MpdClient) recv() (MpdData, error) {
 	}
 	readingBinary := 0
 	lineStart := 0
-	for i := 0; i < n; i++ {
+	for i := range n {
 		r := byteBuffer[i]
 		if readingBinary == 0 {
 			if r == '\n' {
@@ -182,13 +179,11 @@ func (c *MpdClient) recv() (MpdData, error) {
 }
 
 func (c *MpdClient) commandLow(command string) (MpdData, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.logger.Debug("Running Command", "command", command)
 	if c.conn == nil {
 		return MpdData{}, NotConnectedError
 	}
-	_, err := c.conn.Write([]byte(fmt.Sprintf("%s\n", command)))
+	_, err := c.conn.Write(fmt.Appendf(nil, "%s\n", command))
 	if err != nil {
 		return MpdData{}, err
 	}
@@ -198,7 +193,6 @@ func (c *MpdClient) commandLow(command string) (MpdData, error) {
 }
 
 func (c *MpdClient) Command(command string) (MpdData, error) {
-	c.lastUse = time.Now()
 	return c.commandLow(command)
 }
 

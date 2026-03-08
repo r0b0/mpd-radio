@@ -19,7 +19,7 @@ var templateFile embed.FS
 var staticFiles embed.FS
 
 func httpError(w http.ResponseWriter, code int, message string, args ...any) {
-	slog.Error(message, args)
+	slog.Error(message, args...)
 	http.Error(w, message, code)
 }
 
@@ -160,7 +160,7 @@ func main() {
 
 	t, err := template.ParseFS(templateFile, "*.*")
 	if err != nil {
-		slog.Error("failed to parse template %v", err)
+		slog.Error("failed to parse template", slog.Any("error", err))
 		return
 	}
 	c.template = t
