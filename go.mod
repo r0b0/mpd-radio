@@ -1,5 +1,5 @@
 module mpd_radio
 
-go 1.23.1
+go 1.25.0
 
-require golang.org/x/sys v0.25.0
+require golang.org/x/sys v0.42.0
