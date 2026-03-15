@@ -101,40 +101,40 @@ func (c *Context) FindRadio(url string) *Radio {
 func (c *Context) Play(player *MpdClient, url string) error {
 	_ = c.FindPlayer(player.Address) // just to mark it selected
 	_ = c.FindRadio(url)             // just to mark it selected
-	_, err := player.CommandOrReconnect(c.ctx, "clear")
-	if err != nil {
-		return err
+	r := player.Command(c.ctx, "clear")
+	if r.Error != nil {
+		return r.Error
 	}
-	addIdData, err := player.CommandOrReconnect(c.ctx, fmt.Sprintf("addid \"%s\" 0", url))
-	if err != nil {
-		return err
+	addIdData := player.Command(c.ctx, fmt.Sprintf("addid \"%s\" 0", url))
+	if addIdData.Error != nil {
+		return addIdData.Error
 	}
 	addIdData.Print()
 	id, ok := addIdData.Response["Id"]
 	if !ok {
 		return fmt.Errorf("failed to get id of added song")
 	}
-	_, err = player.CommandOrReconnect(c.ctx, fmt.Sprintf("playid %s", id))
-	if err != nil {
-		return err
+	resp := player.Command(c.ctx, fmt.Sprintf("playid %s", id))
+	if resp.Error != nil {
+		return resp.Error
 	}
 	return nil
 }
 
 func (c *Context) Stop(player *MpdClient) error {
 	_ = c.FindPlayer(player.Address) // just to mark it selected
-	_, err := player.CommandOrReconnect(c.ctx, "stop")
-	if err != nil {
-		return err
+	resp := player.Command(c.ctx, "stop")
+	if resp.Error != nil {
+		return resp.Error
 	}
 	return nil
 }
 
 func (c *Context) Pause(player *MpdClient) error {
 	_ = c.FindPlayer(player.Address) // just to mark it selected
-	_, err := player.CommandOrReconnect(c.ctx, "pause")
-	if err != nil {
-		return err
+	resp := player.Command(c.ctx, "pause")
+	if resp.Error != nil {
+		return resp.Error
 	}
 	return nil
 }
@@ -157,9 +157,9 @@ func (c *Context) UpdateStatus(url string) error {
 		return fmt.Errorf("player not found")
 	}
 	c.statusUpdated = time.Now()
-	statusData, err := player.CommandOrReconnect(c.ctx, "status")
-	if err != nil {
-		return err
+	statusData := player.Command(c.ctx, "status")
+	if statusData.Error != nil {
+		return statusData.Error
 	}
 	statusData.Print()
 	status, ok := statusData.Response["state"]
@@ -168,9 +168,9 @@ func (c *Context) UpdateStatus(url string) error {
 	}
 	switch status {
 	case "play":
-		songData, err := player.Command("currentsong")
-		if err != nil {
-			return err
+		songData := player.Command(c.ctx, "currentsong")
+		if songData.Error != nil {
+			return songData.Error
 		}
 		songData.Print()
 		tags := []string{"Title", "Name", "file"}
@@ -195,6 +195,7 @@ func (c *Context) UpdateStatus(url string) error {
 		slog.Warn("Failed to fetch volume from status response")
 		volume = "0"
 	}
+	var err error
 	c.Volume, err = strconv.Atoi(volume)
 	if err != nil {
 		slog.Warn("Failed to parse volume from status response")
@@ -217,8 +218,8 @@ func (c *Context) UpdateVolume(player *MpdClient, change int) error {
 	if c.Volume > 100 {
 		c.Volume = 100
 	}
-	_, err := player.CommandOrReconnect(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
-	return err
+	resp := player.Command(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
+	return resp.Error
 }
 
 func Load() *Context {

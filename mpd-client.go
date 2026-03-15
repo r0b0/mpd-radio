@@ -19,6 +19,12 @@ type MpdData struct {
 	Binary   []byte
 	Ok       string
 	Unparsed []string
+	Error    error
+}
+
+type CommandStruct struct {
+	Command  string
+	Response chan MpdData
 }
 
 func NewMpdData(client *MpdClient) MpdData {
@@ -50,11 +56,12 @@ func (d *MpdData) Print() {
 }
 
 type MpdClient struct {
-	Address      string
-	conn         io.ReadWriteCloser
-	logger       *slog.Logger
-	pingerCancel context.CancelFunc
-	commands     chan string
+	Address     string
+	conn        io.ReadWriteCloser
+	logger      *slog.Logger
+	serveCancel context.CancelFunc
+	lastUse     time.Time
+	commands    chan CommandStruct
 }
 
 func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Logger) (*MpdClient, error) {
@@ -66,7 +73,8 @@ func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Lo
 		nil,
 		parent.With("player address", address),
 		nil,
-		make(chan string)}
+		time.Now(),
+		make(chan CommandStruct)}
 	err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -86,30 +94,32 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 	}
 	data.Print()
 	child, cancel := context.WithCancel(ctx)
-	c.pingerCancel = cancel
-	go c.Ping(child)
+	c.serveCancel = cancel
+	c.lastUse = time.Now()
+	go c.Serve(child)
 	return nil
 }
 
-func (c *MpdClient) Ping(ctx context.Context) {
+func (c *MpdClient) Serve(ctx context.Context) {
+	c.logger.Debug("Starting the serve goroutine")
 	for {
-		// XXX bring this back
-		/*
-			if time.Now().After(c.lastUse.Add(60 * time.Second)) {
-				c.logger.Info("No command for 60 seconds, disconnecting")
-				c.Close()
-				return
-			}
-		*/
-		_, err := c.commandLow("ping")
-		if err != nil {
-			c.logger.Error("error when pinging", "error", err)
+		if c.conn != nil && time.Now().After(c.lastUse.Add(60*time.Second)) {
+			c.logger.Info("No command for 60 seconds, disconnecting")
 			c.Close()
-			return
+			continue
+		}
+		resp := c.commandLow("ping")
+		if resp.Error != nil {
+			c.logger.Error("error when pinging", "error", resp.Error)
+			c.Close()
 		}
 		select {
+		case command := <-c.commands:
+			resp := c.commandLow(command.Command)
+			c.lastUse = time.Now()
+			command.Response <- resp
 		case <-ctx.Done():
-			c.logger.Info("Closing the pinger goroutine", "address", c.Address)
+			c.logger.Info("Closing the serve goroutine", "address", c.Address)
 			return
 		case <-time.After(30 * time.Second):
 		}
@@ -117,9 +127,11 @@ func (c *MpdClient) Ping(ctx context.Context) {
 }
 
 func (c *MpdClient) Close() {
-	c.pingerCancel()
-	_ = c.conn.Close()
-	c.conn = nil
+	c.serveCancel()
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+	}
 }
 
 const MaxBinarySize = 1024 * 1024
@@ -178,34 +190,51 @@ func (c *MpdClient) recv() (MpdData, error) {
 	return data, fmt.Errorf("not enough data read from socket")
 }
 
-func (c *MpdClient) commandLow(command string) (MpdData, error) {
+func (c *MpdClient) commandLow(command string) MpdData {
 	c.logger.Debug("Running Command", "command", command)
 	if c.conn == nil {
-		return MpdData{}, NotConnectedError
+		return MpdData{Error: NotConnectedError}
 	}
 	_, err := c.conn.Write(fmt.Appendf(nil, "%s\n", command))
 	if err != nil {
-		return MpdData{}, err
+		return MpdData{Error: err}
 	}
 	resp, err := c.recv()
+	resp.Error = err
 	resp.Command = command
-	return resp, err
+	return resp
 }
 
-func (c *MpdClient) Command(command string) (MpdData, error) {
-	return c.commandLow(command)
-}
-
-func (c *MpdClient) CommandOrReconnect(ctx context.Context, command string) (MpdData, error) {
-	resp, err := c.Command(command)
-	if errors.Is(err, NotConnectedError) {
+func (c *MpdClient) Command(ctx context.Context, command string) MpdData {
+	cmd := CommandStruct{
+		Command:  command,
+		Response: make(chan MpdData),
+	}
+	if c.conn == nil {
+		err := c.Connect(context.Background())
+		if err != nil {
+			return MpdData{Error: fmt.Errorf("Failed to reconnect: %w", err)}
+		}
+	}
+	if c.commands == nil {
+		c.commands = make(chan CommandStruct)
+		go c.Serve(context.Background()) // TODO what context?
+	}
+	select {
+	case c.commands <- cmd:
+		c.logger.Debug("successfully sent a command %s", command)
+	case <-ctx.Done():
+		return MpdData{Error: fmt.Errorf("Failed to send a command %s - context cancelled", command)}
+	}
+	resp := <-cmd.Response
+	if errors.Is(resp.Error, NotConnectedError) {
 		time.Sleep(1 * time.Second)
 		err := c.Connect(ctx)
 		if err != nil {
-			return MpdData{}, err
+			return MpdData{Error: err}
 		}
-		return c.Command(command)
+		return c.Command(ctx, command)
 	} else {
-		return resp, err
+		return resp
 	}
 }

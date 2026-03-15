@@ -1,5 +1,9 @@
+:root {
+    --pico-font-size: 3vmin;
+}
+
 .master-column {
-    grid-column: span 5;
+    grid-column: span 3;
 }
 
 .animate {
