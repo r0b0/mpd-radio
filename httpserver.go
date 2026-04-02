@@ -135,16 +135,18 @@ func (a *Application) commonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accept := r.Header.Get("Accept")
-	if strings.HasPrefix(accept, "text/html") {
-		w.Header().Add("Content-Type", "text/html")
-		err = a.htmlTemplate.ExecuteTemplate(w, templateName, a)
+	if strings.HasPrefix(accept, "text/plain") {
+		w.Header().Add("Content-Type", "text/plain")
+		err = a.textTemplate.ExecuteTemplate(w, templateName, a)
 		if err != nil {
 			httpError(w, 500, "failed to execute template", "error", err)
 			return
 		}
-	} else if strings.HasPrefix(accept, "text/plain") {
-		w.Header().Add("Content-Type", "text/plain")
-		err = a.textTemplate.ExecuteTemplate(w, templateName, a)
+	} else if strings.HasPrefix(accept, "text/html") ||
+		strings.HasPrefix(accept, "text/*") ||
+		strings.HasPrefix(accept, "*/") {
+		w.Header().Add("Content-Type", "text/html")
+		err = a.htmlTemplate.ExecuteTemplate(w, templateName, a)
 		if err != nil {
 			httpError(w, 500, "failed to execute template", "error", err)
 			return
