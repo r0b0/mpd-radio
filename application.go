@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-const AppVersion = "26.03"
+const AppVersion = "26.04"
 
 type Radio struct {
 	Name string
 	Url  string
 }
 
-type Context struct {
+type Application struct {
 	PlayerList     []*MpdClient
 	SelectedPlayer int
 	RadioList      []Radio
@@ -32,43 +32,43 @@ type Context struct {
 	AppVersion     string
 }
 
-func (c *Context) ConnectPlayer(p *MpdClient) {
+func (a *Application) ConnectPlayer(p *MpdClient) {
 	if p.logger == nil {
 		p.logger = slog.With("player address", p.Address)
 	}
-	err := p.Connect(c.ctx)
+	err := p.Connect(a.ctx)
 	if err != nil {
 		slog.Error("Failed to connect player %s: %s", p.Address, err)
 		return
 	}
-	if c.Status == "" {
-		_ = c.UpdateStatus(p.Address)
+	if a.Status == "" {
+		_ = a.UpdateStatus(p.Address)
 	}
-	_ = c.FindPlayer(p.Address) // just to mark it selected
+	_ = a.FindPlayer(p.Address) // just to mark it selected
 }
 
-func (c *Context) RemoveRadio(name string) error {
-	for i, r := range c.RadioList {
+func (a *Application) RemoveRadio(name string) error {
+	for i, r := range a.RadioList {
 		if r.Url == name {
-			c.RadioList = slices.Delete(c.RadioList, i, i+1)
-			err := c.Store()
+			a.RadioList = slices.Delete(a.RadioList, i, i+1)
+			err := a.Store()
 			if err != nil {
 				return err
 			}
-			c.SelectedRadio = 0
+			a.SelectedRadio = 0
 			return nil
 		}
 	}
 	return fmt.Errorf("radio not found")
 }
 
-func (c *Context) RemovePlayer(address string) error {
-	for i, p := range c.PlayerList {
+func (a *Application) RemovePlayer(address string) error {
+	for i, p := range a.PlayerList {
 		if p.Address == address {
-			c.SelectedPlayer = 0
+			a.SelectedPlayer = 0
 			p.Close()
-			c.PlayerList = slices.Delete(c.PlayerList, i, i+1)
-			err := c.Store()
+			a.PlayerList = slices.Delete(a.PlayerList, i, i+1)
+			err := a.Store()
 			if err != nil {
 				return err
 			}
@@ -78,34 +78,34 @@ func (c *Context) RemovePlayer(address string) error {
 	return fmt.Errorf("player not found")
 }
 
-func (c *Context) FindPlayer(url string) *MpdClient {
-	for i, p := range c.PlayerList {
+func (a *Application) FindPlayer(url string) *MpdClient {
+	for i, p := range a.PlayerList {
 		if p.Address == url {
-			c.SelectedPlayer = i
+			a.SelectedPlayer = i
 			return p
 		}
 	}
 	return nil
 }
 
-func (c *Context) FindRadio(url string) *Radio {
-	for i, r := range c.RadioList {
+func (a *Application) FindRadio(url string) *Radio {
+	for i, r := range a.RadioList {
 		if r.Url == url {
-			c.SelectedRadio = i
+			a.SelectedRadio = i
 			return &r
 		}
 	}
 	return nil
 }
 
-func (c *Context) Play(player *MpdClient, url string) error {
-	_ = c.FindPlayer(player.Address) // just to mark it selected
-	_ = c.FindRadio(url)             // just to mark it selected
-	r := player.Command(c.ctx, "clear")
+func (a *Application) Play(player *MpdClient, url string) error {
+	_ = a.FindPlayer(player.Address) // just to mark it selected
+	_ = a.FindRadio(url)             // just to mark it selected
+	r := player.Command(a.ctx, "clear")
 	if r.Error != nil {
 		return r.Error
 	}
-	addIdData := player.Command(c.ctx, fmt.Sprintf("addid \"%s\" 0", url))
+	addIdData := player.Command(a.ctx, fmt.Sprintf("addid \"%s\" 0", url))
 	if addIdData.Error != nil {
 		return addIdData.Error
 	}
@@ -114,50 +114,50 @@ func (c *Context) Play(player *MpdClient, url string) error {
 	if !ok {
 		return fmt.Errorf("failed to get id of added song")
 	}
-	resp := player.Command(c.ctx, fmt.Sprintf("playid %s", id))
+	resp := player.Command(a.ctx, fmt.Sprintf("playid %s", id))
 	if resp.Error != nil {
 		return resp.Error
 	}
 	return nil
 }
 
-func (c *Context) Stop(player *MpdClient) error {
-	_ = c.FindPlayer(player.Address) // just to mark it selected
-	resp := player.Command(c.ctx, "stop")
+func (a *Application) Stop(player *MpdClient) error {
+	_ = a.FindPlayer(player.Address) // just to mark it selected
+	resp := player.Command(a.ctx, "stop")
 	if resp.Error != nil {
 		return resp.Error
 	}
 	return nil
 }
 
-func (c *Context) Pause(player *MpdClient) error {
-	_ = c.FindPlayer(player.Address) // just to mark it selected
-	resp := player.Command(c.ctx, "pause")
+func (a *Application) Pause(player *MpdClient) error {
+	_ = a.FindPlayer(player.Address) // just to mark it selected
+	resp := player.Command(a.ctx, "pause")
 	if resp.Error != nil {
 		return resp.Error
 	}
 	return nil
 }
 
-func (c *Context) Store() error {
-	j, err := json.Marshal(c)
+func (a *Application) Store() error {
+	j, err := json.Marshal(a)
 	if err != nil {
 		return err
 	}
 	return saveConfig(j)
 }
 
-func (c *Context) UpdateStatus(url string) error {
-	if time.Now().Before(c.statusUpdated.Add(10 * time.Second)) {
+func (a *Application) UpdateStatus(url string) error {
+	if time.Now().Before(a.statusUpdated.Add(10 * time.Second)) {
 		slog.Debug("status is still ok, no need to fetch")
 		return nil
 	}
-	player := c.FindPlayer(url)
+	player := a.FindPlayer(url)
 	if player == nil {
 		return fmt.Errorf("player not found")
 	}
-	c.statusUpdated = time.Now()
-	statusData := player.Command(c.ctx, "status")
+	a.statusUpdated = time.Now()
+	statusData := player.Command(a.ctx, "status")
 	if statusData.Error != nil {
 		return statusData.Error
 	}
@@ -168,7 +168,7 @@ func (c *Context) UpdateStatus(url string) error {
 	}
 	switch status {
 	case "play":
-		songData := player.Command(c.ctx, "currentsong")
+		songData := player.Command(a.ctx, "currentsong")
 		if songData.Error != nil {
 			return songData.Error
 		}
@@ -177,17 +177,17 @@ func (c *Context) UpdateStatus(url string) error {
 		for _, tag := range tags {
 			name, ok := songData.Response[tag]
 			if ok {
-				c.Status = name
+				a.Status = name
 				break
 			}
 		}
-		c.IsPlaying = true
+		a.IsPlaying = true
 	case "stop":
-		c.Status = "Stopped"
-		c.IsPlaying = false
+		a.Status = "Stopped"
+		a.IsPlaying = false
 	case "pause":
-		c.Status = "Paused"
-		c.IsPlaying = false
+		a.Status = "Paused"
+		a.IsPlaying = false
 	}
 
 	volume, ok := statusData.Response["volume"]
@@ -196,35 +196,35 @@ func (c *Context) UpdateStatus(url string) error {
 		volume = "0"
 	}
 	var err error
-	c.Volume, err = strconv.Atoi(volume)
+	a.Volume, err = strconv.Atoi(volume)
 	if err != nil {
 		slog.Warn("Failed to parse volume from status response")
-		c.Volume = 0
+		a.Volume = 0
 	}
-	if c.Volume < 0 || c.Volume > 100 {
+	if a.Volume < 0 || a.Volume > 100 {
 		slog.Warn("Invalid volume value from status respose")
-		c.Volume = 0
+		a.Volume = 0
 	}
 
 	return nil
 }
 
-func (c *Context) UpdateVolume(player *MpdClient, change int) error {
-	c.Volume += change
+func (a *Application) UpdateVolume(player *MpdClient, change int) error {
+	a.Volume += change
 
-	if c.Volume < 0 {
-		c.Volume = 0
+	if a.Volume < 0 {
+		a.Volume = 0
 	}
-	if c.Volume > 100 {
-		c.Volume = 100
+	if a.Volume > 100 {
+		a.Volume = 100
 	}
-	resp := player.Command(c.ctx, fmt.Sprintf("setvol %d", c.Volume))
+	resp := player.Command(a.ctx, fmt.Sprintf("setvol %d", a.Volume))
 	return resp.Error
 }
 
-func Load() *Context {
+func Load() *Application {
 	j, err := loadConfig()
-	c := Context{}
+	c := Application{}
 	c.AppVersion = AppVersion
 	if err != nil {
 		return &c

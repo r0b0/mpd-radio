@@ -64,24 +64,6 @@ type MpdClient struct {
 	commands    chan CommandStruct
 }
 
-func NewMpdClient(ctx context.Context, host string, port string, parent *slog.Logger) (*MpdClient, error) {
-	if port == "" {
-		port = "6600"
-	}
-	address := net.JoinHostPort(host, port)
-	client := MpdClient{address,
-		nil,
-		parent.With("player address", address),
-		nil,
-		time.Now(),
-		make(chan CommandStruct)}
-	err := client.Connect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &client, nil
-}
-
 func (c *MpdClient) Connect(ctx context.Context) error {
 	var err error
 	c.conn, err = net.Dial("tcp", c.Address)
@@ -96,6 +78,9 @@ func (c *MpdClient) Connect(ctx context.Context) error {
 	child, cancel := context.WithCancel(ctx)
 	c.serveCancel = cancel
 	c.lastUse = time.Now()
+	if c.commands == nil {
+		c.commands = make(chan CommandStruct)
+	}
 	go c.Serve(child)
 	return nil
 }
@@ -117,7 +102,7 @@ func (c *MpdClient) Serve(ctx context.Context) {
 		case command := <-c.commands:
 			resp := c.commandLow(command.Command)
 			c.lastUse = time.Now()
-			command.Response <- resp
+			go func() { command.Response <- resp }()
 		case <-ctx.Done():
 			c.logger.Info("Closing the serve goroutine", "address", c.Address)
 			return
@@ -211,20 +196,20 @@ func (c *MpdClient) Command(ctx context.Context, command string) MpdData {
 		Response: make(chan MpdData),
 	}
 	if c.conn == nil {
-		err := c.Connect(context.Background())
+		err := c.Connect(ctx)
 		if err != nil {
-			return MpdData{Error: fmt.Errorf("Failed to reconnect: %w", err)}
+			return MpdData{Error: fmt.Errorf("failed to reconnect: %w", err)}
 		}
 	}
 	if c.commands == nil {
 		c.commands = make(chan CommandStruct)
-		go c.Serve(context.Background()) // TODO what context?
+		go c.Serve(ctx)
 	}
 	select {
 	case c.commands <- cmd:
-		c.logger.Debug("successfully sent a command %s", command)
+		c.logger.Debug("successfully sent a command", "command", command)
 	case <-ctx.Done():
-		return MpdData{Error: fmt.Errorf("Failed to send a command %s - context cancelled", command)}
+		return MpdData{Error: fmt.Errorf("failed to send a command %s - context cancelled", command)}
 	}
 	resp := <-cmd.Response
 	if errors.Is(resp.Error, NotConnectedError) {
@@ -234,7 +219,7 @@ func (c *MpdClient) Command(ctx context.Context, command string) MpdData {
 			return MpdData{Error: err}
 		}
 		return c.Command(ctx, command)
-	} else {
-		return resp
 	}
+
+	return resp
 }

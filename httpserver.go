@@ -8,8 +8,10 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"time"
 )
 
 //go:embed template.html
@@ -23,7 +25,7 @@ func httpError(w http.ResponseWriter, code int, message string, args ...any) {
 	http.Error(w, message, code)
 }
 
-func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
+func (a *Application) commonHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		httpError(w, 400, "failed to parse form", "error", err)
@@ -34,7 +36,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 	var templateName string
 	playerUrl := r.Form.Get("player")
 	radioUrl := r.Form.Get("radio")
-	player := c.FindPlayer(playerUrl)
+	player := a.FindPlayer(playerUrl)
 
 	if r.Method == "GET" && r.URL.Path == "/" {
 		templateName = "template.html"
@@ -42,7 +44,7 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		templateName = "PlayerSelect"
 	} else if r.URL.Path == "/status" {
 		templateName = "Status"
-		err = c.UpdateStatus(playerUrl)
+		err = a.UpdateStatus(playerUrl)
 		if err != nil {
 			httpError(w, 500, "failed to get player status", "error", err)
 			return
@@ -55,23 +57,23 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if r.Form.Has("play") {
-			c.Status = "playing"
-			c.IsPlaying = true
-			err = c.Play(player, radioUrl)
+			a.Status = "playing"
+			a.IsPlaying = true
+			err = a.Play(player, radioUrl)
 		} else if r.Form.Has("stop") {
-			c.Status = "stopping"
-			c.IsPlaying = false
-			err = c.Stop(player)
+			a.Status = "stopping"
+			a.IsPlaying = false
+			err = a.Stop(player)
 		} else if r.Form.Has("pause") {
-			c.Status = "pausing"
-			c.IsPlaying = false
-			err = c.Pause(player)
+			a.Status = "pausing"
+			a.IsPlaying = false
+			err = a.Pause(player)
 		} else if r.Form.Has("volume_up") {
 			templateName = "VolumeRange"
-			err = c.UpdateVolume(player, 10)
+			err = a.UpdateVolume(player, 10)
 		} else if r.Form.Has("volume_down") {
 			templateName = "VolumeRange"
-			err = c.UpdateVolume(player, -10)
+			err = a.UpdateVolume(player, -10)
 		} else {
 			httpError(w, 400, "unknown command")
 			return
@@ -82,23 +84,21 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if r.Method == "PUT" && r.URL.Path == "/player" {
 		templateName = "PlayerSelect"
-		player, err := NewMpdClient(c.ctx,
-			r.Form.Get("playerHost"),
-			r.Form.Get("playerPort"),
-			slog.Default())
-		if err != nil {
-			httpError(w, 500, "failed to connect to mpd server", "error", err)
-			return
+		address := net.JoinHostPort(r.Form.Get("playerHost"), r.Form.Get("playerPort"))
+		player = &MpdClient{
+			Address: address,
+			logger:  slog.Default().With("player address", address),
+			lastUse: time.Now(),
 		}
-		c.PlayerList = append(c.PlayerList, player)
-		err = c.Store()
+		a.PlayerList = append(a.PlayerList, player)
+		err = a.Store()
 		if err != nil {
 			httpError(w, 500, "failed to store app status", "error", err)
 			return
 		}
 	} else if r.Method == "DELETE" && r.URL.Path == "/player" {
 		templateName = "PlayerSelect"
-		err := c.RemovePlayer(playerUrl)
+		err := a.RemovePlayer(playerUrl)
 		if err != nil {
 			httpError(w, 500, "failed to remove player", "error", err)
 			return
@@ -109,32 +109,32 @@ func (c *Context) commonHandler(w http.ResponseWriter, r *http.Request) {
 			Name: r.Form.Get("radioName"),
 			Url:  r.Form.Get("radioUrl"),
 		}
-		c.RadioList = append(c.RadioList, radio)
-		err := c.Store()
+		a.RadioList = append(a.RadioList, radio)
+		err := a.Store()
 		if err != nil {
 			httpError(w, 500, "failed to store app status", "error", err)
 			return
 		}
 	} else if r.Method == "DELETE" && r.URL.Path == "/radio" {
 		templateName = "RadioSelect"
-		err := c.RemoveRadio(radioUrl)
+		err := a.RemoveRadio(radioUrl)
 		if err != nil {
 			httpError(w, 500, "failed to remove radio", "error", err)
 			return
 		}
 	} else {
-		httpError(w, 404, "uknonwn combination of method and url", "method", r.Method, "url", r.URL.Path)
+		httpError(w, 404, "unknown combination of method and url", "method", r.Method, "url", r.URL.Path)
 		return
 	}
 
 	if templateName != "" {
-		err = c.template.ExecuteTemplate(w, templateName, c)
+		err = a.template.ExecuteTemplate(w, templateName, a)
 		if err != nil {
 			httpError(w, 500, "failed to execute template", "error", err)
 			return
 		}
 	} else {
-		httpError(w, 404, "uknonwn request url", "url", r.URL.Path)
+		httpError(w, 404, "unknown request url", "url", r.URL.Path)
 		return
 	}
 }
@@ -182,7 +182,7 @@ func main() {
 func replaceAttrFuncRemoveTime(_ []string, a slog.Attr) slog.Attr {
 	if a.Key == slog.TimeKey {
 		return slog.Attr{}
-	} else {
-		return a
 	}
+
+	return a
 }
