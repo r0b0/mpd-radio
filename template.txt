@@ -1,0 +1,8 @@
+{{define "PlayerSelect"}}{{range $i, $p := .PlayerList}}{{$p.Address}}  {{if eq $i $.SelectedPlayer}}selected{{end}}
+{{end}}{{end}}
+{{define "RadioSelect"}}{{range $i, $r := .RadioList}}{{$r.Url}}  {{ $r.Name }}   {{if eq $i $.SelectedRadio}}selected{{end}}
+{{end}}{{end}}
+{{define "VolumeRange" }}{{ .Volume }}{{end }}
+{{define "Status"}}{{ .Status }}
+{{range $i, $r := .RadioList}}{{if eq $i $.SelectedRadio}}{{ $r.Name }}{{end}}{{end}}
+{{if .IsPlaying}}♫{{end}}{{end}}

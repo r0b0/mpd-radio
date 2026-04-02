@@ -4,18 +4,23 @@ import (
 	"context"
 	"embed"
 	"flag"
-	"html/template"
+	htmlTemplate "html/template"
 	"io/fs"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"strings"
+	textTemplate "text/template"
 	"time"
 )
 
 //go:embed template.html
-var templateFile embed.FS
+var htmlTemplateFile embed.FS
+
+//go:embed template.txt
+var textTemplateFile embed.FS
 
 //go:embed static
 var staticFiles embed.FS
@@ -32,7 +37,7 @@ func (a *Application) commonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//	slog.Debug("request", "r", r)
-	w.Header().Add("Content-Type", "text/html")
+
 	var templateName string
 	playerUrl := r.Form.Get("player")
 	radioUrl := r.Form.Get("radio")
@@ -103,6 +108,8 @@ func (a *Application) commonHandler(w http.ResponseWriter, r *http.Request) {
 			httpError(w, 500, "failed to remove player", "error", err)
 			return
 		}
+	} else if r.Method == "GET" && r.URL.Path == "/radio" {
+		templateName = "RadioSelect"
 	} else if r.Method == "PUT" && r.URL.Path == "/radio" {
 		templateName = "RadioSelect"
 		radio := Radio{
@@ -127,14 +134,23 @@ func (a *Application) commonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if templateName != "" {
-		err = a.template.ExecuteTemplate(w, templateName, a)
+	accept := r.Header.Get("Accept")
+	if strings.HasPrefix(accept, "text/html") {
+		w.Header().Add("Content-Type", "text/html")
+		err = a.htmlTemplate.ExecuteTemplate(w, templateName, a)
+		if err != nil {
+			httpError(w, 500, "failed to execute template", "error", err)
+			return
+		}
+	} else if strings.HasPrefix(accept, "text/plain") {
+		w.Header().Add("Content-Type", "text/plain")
+		err = a.textTemplate.ExecuteTemplate(w, templateName, a)
 		if err != nil {
 			httpError(w, 500, "failed to execute template", "error", err)
 			return
 		}
 	} else {
-		httpError(w, 404, "unknown request url", "url", r.URL.Path)
+		httpError(w, 404, "unknown request url", "url", r.URL.Path, "accept", accept)
 		return
 	}
 }
@@ -158,12 +174,19 @@ func main() {
 
 	c := Load()
 
-	t, err := template.ParseFS(templateFile, "*.*")
+	t, err := htmlTemplate.ParseFS(htmlTemplateFile, "*.*")
 	if err != nil {
-		slog.Error("failed to parse template", slog.Any("error", err))
+		slog.Error("failed to parse html template", slog.Any("error", err))
 		return
 	}
-	c.template = t
+	c.htmlTemplate = t
+
+	tt, err := textTemplate.ParseFS(textTemplateFile, "*.*")
+	if err != nil {
+		slog.Error("failed to parse txt template", slog.Any("error", err))
+		return
+	}
+	c.textTemplate = tt
 	c.ctx = context.Background()
 
 	for _, p := range c.PlayerList {

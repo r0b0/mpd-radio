@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
+	htmlTemplate "html/template"
 	"log/slog"
 	"slices"
 	"strconv"
+	textTemplate "text/template"
 	"time"
 )
 
@@ -27,7 +28,8 @@ type Application struct {
 	IsPlaying      bool
 	Volume         int
 	statusUpdated  time.Time
-	template       *template.Template
+	htmlTemplate   *htmlTemplate.Template
+	textTemplate   *textTemplate.Template
 	ctx            context.Context
 	AppVersion     string
 }
@@ -84,6 +86,9 @@ func (a *Application) FindPlayer(url string) *MpdClient {
 			a.SelectedPlayer = i
 			return p
 		}
+	}
+	if url == "" && len(a.PlayerList) > 0 {
+		return a.PlayerList[0]
 	}
 	return nil
 }
