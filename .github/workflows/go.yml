@@ -13,13 +13,13 @@ jobs:
         arch: [amd64, arm64]
         include:
           - os: linux
-          - arch: riscv64
+            arch: riscv64
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.26.2'
 
@@ -31,7 +31,7 @@ jobs:
       run: for x in mpd_radio_build-windows-*; do mv $x $x.exe; done
 
     - name: Production artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: "MPD Radio ${{matrix.os}} ${{matrix.arch}}"
         path: mpd_radio_build-*
