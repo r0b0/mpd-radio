@@ -3,8 +3,8 @@
     <head>
         <meta charset="UTF-8">
         <title>MPD Radio</title>
-        <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js" 
-            integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.9/dist/htmx.min.js"
+                integrity="sha384-ESlCao+z/oasnu2Uc/5K1LQTI7YCF2KKO4xakCPQCFuiHhCh8Oa/R5NwHY6guZ3m" crossorigin="anonymous"></script>
         <script src="static/mpd-radio.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css" 
             integrity="sha384-L1dWfspMTHU/ApYnFiMz2QID/PlP1xCW9visvBdbEkOLkSSWsP6ZJWhPw6apiXxU" crossorigin="anonymous">
@@ -14,6 +14,75 @@
     <body>
         <main class="container-fluid">
             <h1>MPD Radio</h1>
+
+            <article>
+                <header>Status</header>
+                <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">
+                    {{define "Status"}}
+                    {{if .IsPlaying}}
+                    <span class="animate">♫</span>
+                    {{end}}
+                    {{ .Status }}
+                    <title hx-swap-oob="title">{{ .Status }} - MPD Radio</title>
+                    {{end}}
+                    {{template "Status" .}}
+                </div>
+            </article>
+
+            <h2>Radio</h2>
+            <fieldset class="grid">
+                <select class="master-column" name="radio">
+                    {{define "RadioSelect"}}
+                    {{range $i, $r := .RadioList}}
+                    <option value="{{$r.Url}}"  {{if eq $i $.SelectedRadio}}selected{{end}}>
+                        {{ $r.Name }}
+                    </option>
+                    {{end}}
+                    {{end}}
+                    {{template "RadioSelect" .}}
+                </select>
+                <button onclick="openDialog('addRadioDialog')">+</button>
+                <button hx-delete="/radio" hx-include="[name='radio']" hx-target="[name='radio']">-</button>
+            </fieldset>
+            <dialog id="addRadioDialog">
+                <article>
+                    <header><h2>Add radio</h2></header>
+                    <label>
+                        Name
+                        <input type="text" name="radioName">
+                    </label>
+                    <label>
+                        URL
+                        <input type="text" name="radioUrl">
+                    </label>
+                    <footer>
+                        <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']"
+                                hx-on--after-request="closeDialog('addRadioDialog')">OK</button>
+                        <button class="secondary" onclick="closeDialog('addRadioDialog')">Cancel</button>
+                    </footer>
+                </article>
+            </dialog>
+            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#status">
+                <fieldset class="grid">
+                    <!-- TODO graphical buttons -->
+                    <button name="play">Play</button>
+                    <button name="stop">Stop</button>
+                    <button name="pause">Pause</button>
+                </fieldset>
+            </form>
+
+            <h2>Volume</h2>
+            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#volume_range" hx-swap="outerHTML">
+                <fieldset class="grid">
+                    {{define "VolumeRange" }}
+                    <input id="volume_range" type="range" class="master-column" disabled value="{{ .Volume }}" />
+                    {{end }}
+                    {{template "VolumeRange" .}}
+                    <button name="volume_up">+</button>
+                    <button name="volume_down">-</button>
+                </fieldset>
+            </form>
+
             <h2>Player</h2>
             <fieldset class="grid">
                 <select hx-get="/player" name="player" class="master-column">
@@ -48,74 +117,6 @@
                 </article>
             </dialog>
 
-            <h2>Radio</h2>
-            <fieldset class="grid">
-                <select class="master-column" name="radio">
-                    {{define "RadioSelect"}}
-                        {{range $i, $r := .RadioList}}
-                            <option value="{{$r.Url}}"  {{if eq $i $.SelectedRadio}}selected{{end}}>
-                                {{ $r.Name }}
-                            </option>
-                        {{end}}
-                    {{end}}
-                    {{template "RadioSelect" .}}
-                </select>
-                <button onclick="openDialog('addRadioDialog')">+</button>
-                <button hx-delete="/radio" hx-include="[name='radio']" hx-target="[name='radio']">-</button>
-            </fieldset>
-            <dialog id="addRadioDialog">
-                <article>
-                    <header><h2>Add radio</h2></header>
-                    <label>
-                        Name
-                        <input type="text" name="radioName">
-                    </label>
-                    <label>
-                        URL
-                        <input type="text" name="radioUrl">
-                    </label>
-                    <footer>
-                        <button hx-put="/radio" hx-include="[name^='radio']" hx-target="[name='radio']"
-                                hx-on--after-request="closeDialog('addRadioDialog')">OK</button>
-                        <button class="secondary" onclick="closeDialog('addRadioDialog')">Cancel</button>
-                    </footer>
-                </article>
-            </dialog>
-
-            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#status">
-                <fieldset class="grid">
-                    <!-- TODO graphical buttons -->
-                    <button name="play">Play</button>
-                    <button name="stop">Stop</button>
-                    <button name="pause">Pause</button>
-                </fieldset>
-            </form>
-
-            <h2>Volume</h2>
-            <form hx-post="/command" hx-include="[name='radio'], [name='player']" hx-target="#volume_range" hx-swap="outerHTML">
-                <fieldset class="grid">
-                    {{define "VolumeRange" }}
-                    <input id="volume_range" type="range" class="master-column" disabled value="{{ .Volume }}" />
-                    {{end }}
-                    {{template "VolumeRange" .}}
-                    <button name="volume_up">+</button>
-                    <button name="volume_down">-</button>
-                </fieldset>
-            </form>
-
-            <article>
-                <header>Status</header>
-                <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">
-                    {{define "Status"}}
-                        {{if .IsPlaying}}
-                            <span class="animate">♫</span>
-                        {{end}}
-                        {{ .Status }}
-                        <title hx-swap-oob="title">{{ .Status }} - MPD Radio</title>
-                    {{end}}
-                    {{template "Status" .}}
-                </div>
-            </article>
         </main>
         <footer class="container-fluid">
             <small><a href="https://github.com/r0b0/mpd-radio">MPD Radio</a> version {{.AppVersion}}</small>
