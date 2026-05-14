@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const AppVersion = "26.04"
+const AppVersion = "26.05"
 
 type Radio struct {
 	Name string
@@ -50,33 +50,36 @@ func (a *Application) ConnectPlayer(p *MpdClient) {
 }
 
 func (a *Application) RemoveRadio(name string) error {
-	for i, r := range a.RadioList {
-		if r.Url == name {
-			a.RadioList = slices.Delete(a.RadioList, i, i+1)
-			err := a.Store()
-			if err != nil {
-				return err
-			}
-			a.SelectedRadio = 0
-			return nil
+	found := false
+	a.RadioList = slices.DeleteFunc(a.RadioList, func(r Radio) bool {
+		found = true
+		return r.Url == name
+	})
+	if found {
+		err := a.Store()
+		if err != nil {
+			return err
 		}
+		return nil
 	}
+
 	return fmt.Errorf("radio not found")
 }
 
 func (a *Application) RemovePlayer(address string) error {
-	for i, p := range a.PlayerList {
-		if p.Address == address {
-			a.SelectedPlayer = 0
-			p.Close()
-			a.PlayerList = slices.Delete(a.PlayerList, i, i+1)
-			err := a.Store()
-			if err != nil {
-				return err
-			}
-			return nil
+	found := false
+	a.PlayerList = slices.DeleteFunc(a.PlayerList, func(p *MpdClient) bool {
+		found = true
+		return p.Address == address
+	})
+	if found {
+		err := a.Store()
+		if err != nil {
+			return err
 		}
+		return nil
 	}
+
 	return fmt.Errorf("player not found")
 }
 
