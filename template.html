@@ -16,7 +16,6 @@
             <h1>MPD Radio</h1>
 
             <article>
-                <header>Status</header>
                 <div id="status" hx-get="/status" hx-trigger="every 10s" hx-include="[name='player']">
                     {{define "Status"}}
                     {{if .IsPlaying}}
