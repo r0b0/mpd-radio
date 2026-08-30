@@ -161,6 +161,7 @@ func main() {
 	listenFlag := flag.String("p", "127.0.0.1:6680", "listen address and port")
 	quietFlag := flag.Bool("q", false, "skip debugging output")
 	skipTimeStampFlag := flag.Bool("t", false, "skip timestamps in output")
+	multiplePlayers := flag.Bool("m", false, "support multiple players")
 	flag.Parse()
 
 	handlerOptions := slog.HandlerOptions{}
@@ -175,6 +176,9 @@ func main() {
 	slog.SetDefault(logger)
 
 	c := Load()
+	if *multiplePlayers {
+		c.MultiplePlayers = true
+	}
 
 	t, err := htmlTemplate.ParseFS(htmlTemplateFile, "*.*")
 	if err != nil {

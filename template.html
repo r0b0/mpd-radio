@@ -82,16 +82,18 @@
                 </fieldset>
             </form>
 
+            {{define "PlayerSelect"}}
+            {{range $i, $p := .PlayerList}}
+            <option value="{{$p.Address}}" {{if eq $i $.SelectedPlayer}}selected{{end}}>
+                {{$p.Address}}
+            </option>
+            {{end}}
+            {{end}}
+
+            {{if .MultiplePlayers}}
             <h2>Player</h2>
             <fieldset class="grid">
                 <select hx-get="/player" name="player" class="master-column">
-                    {{define "PlayerSelect"}}
-                        {{range $i, $p := .PlayerList}}
-                            <option value="{{$p.Address}}" {{if eq $i $.SelectedPlayer}}selected{{end}}>
-                                {{$p.Address}}
-                            </option>
-                        {{end}}
-                    {{end}}
                     {{template "PlayerSelect" .}}
                 </select>
                 <button onclick="openDialog('addPlayerDialog')">+</button>
@@ -115,6 +117,7 @@
                     </footer>
                 </article>
             </dialog>
+            {{end}}
 
         </main>
         <footer class="container-fluid">

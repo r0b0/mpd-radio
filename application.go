@@ -20,18 +20,19 @@ type Radio struct {
 }
 
 type Application struct {
-	PlayerList     []*MpdClient
-	SelectedPlayer int
-	RadioList      []Radio
-	SelectedRadio  int
-	Status         string
-	IsPlaying      bool
-	Volume         int
-	statusUpdated  time.Time
-	htmlTemplate   *htmlTemplate.Template
-	textTemplate   *textTemplate.Template
-	ctx            context.Context
-	AppVersion     string
+	PlayerList      []*MpdClient
+	SelectedPlayer  int
+	RadioList       []Radio
+	SelectedRadio   int
+	Status          string
+	IsPlaying       bool
+	Volume          int
+	statusUpdated   time.Time
+	MultiplePlayers bool
+	htmlTemplate    *htmlTemplate.Template
+	textTemplate    *textTemplate.Template
+	ctx             context.Context
+	AppVersion      string
 }
 
 func (a *Application) ConnectPlayer(p *MpdClient) {
@@ -241,6 +242,7 @@ func Load() *Application {
 	if err != nil {
 		slog.Error("failed to unmarshall application context; using default empty context", slog.Any("error", err))
 	}
+	c.MultiplePlayers = len(c.PlayerList) > 1 || len(c.PlayerList) == 0
 	c.AppVersion = AppVersion
 	c.Status = "" // force reload from the server
 	return &c
