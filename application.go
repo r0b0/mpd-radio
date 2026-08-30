@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const AppVersion = "26.05"
+const AppVersion = "26.09"
 
 type Radio struct {
 	Name string
@@ -232,8 +232,8 @@ func (a *Application) UpdateVolume(player *MpdClient, change int) error {
 
 func Load() *Application {
 	j, err := loadConfig()
-	c := Application{}
-	c.AppVersion = AppVersion
+	c := Application{
+		AppVersion: AppVersion}
 	if err != nil {
 		return &c
 	}

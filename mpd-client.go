@@ -28,9 +28,9 @@ type CommandStruct struct {
 }
 
 func NewMpdData(client *MpdClient) MpdData {
-	data := MpdData{}
-	data.client = client
-	data.Response = make(map[string]string)
+	data := MpdData{
+		client:   client,
+		Response: make(map[string]string)}
 	return data
 }
 
