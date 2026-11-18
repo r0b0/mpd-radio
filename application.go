@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const AppVersion = "26.09"
+const AppVersion = "26.11"
 
 type Radio struct {
 	Name string
