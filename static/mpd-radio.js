@@ -2,5 +2,7 @@ function openDialog(name) {
     document.getElementById(name).showModal()
 }
 function closeDialog(name) {
-    document.getElementById(name).close()
+    let element = document.getElementById(name)
+    console.debug(`closing ${element}`)
+    element.close()
 }
